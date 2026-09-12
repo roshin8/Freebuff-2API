@@ -12,11 +12,22 @@ const configIndex = process.argv.indexOf('--config');
 const config = fs.readFileSync(process.argv[configIndex + 1], 'utf8');
 const match = /^listen_addr:\\s*["']?127\\.0\\.0\\.1:(\\d+)["']?\\s*$/m.exec(config);
 const delayPath = require('node:path').join(process.cwd(), 'health-delay-ms');
+const tricklePath = require('node:path').join(process.cwd(), 'health-trickle-ms');
 const shutdownOutputPath = require('node:path').join(process.cwd(), 'shutdown-output-bytes');
 
 if (!match) throw new Error('missing loopback listen_addr');
 
 const server = http.createServer((request, response) => {
+  if (fs.existsSync(tricklePath)) {
+    const trickleMs = Number(fs.readFileSync(tricklePath, 'utf8'));
+    response.socket.write('HTTP/1.1 200 OK\\r\\nX-Trickle: ');
+    const trickle = setInterval(() => response.socket.write('x'), 25);
+    setTimeout(() => {
+      clearInterval(trickle);
+      response.socket.end('\\r\\nContent-Length: 0\\r\\n\\r\\n');
+    }, trickleMs);
+    return;
+  }
   const healthDelayMs = fs.existsSync(delayPath) ? Number(fs.readFileSync(delayPath, 'utf8')) : 0;
   setTimeout(() => {
     response.writeHead(request.url === '/healthz' ? 200 : 404);
@@ -98,6 +109,11 @@ async function createGatewayFixture() {
     fs.writeFileSync(path.join(userDataDir, 'health-delay-ms'), String(delayMs));
   }
 
+  function trickleHealth(trickleMs) {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, 'health-trickle-ms'), String(trickleMs));
+  }
+
   function bufferOutputOnShutdown(bytes) {
     fs.mkdirSync(userDataDir, { recursive: true });
     fs.writeFileSync(path.join(userDataDir, 'shutdown-output-bytes'), String(bytes));
@@ -123,6 +139,7 @@ async function createGatewayFixture() {
     },
     port,
     readGatewayLog,
+    trickleHealth,
   };
 }
 

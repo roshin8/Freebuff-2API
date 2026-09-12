@@ -59,3 +59,22 @@ test('waits for buffered child output to reach the log before shutdown completes
   assert.ok(log.length >= 8 * 1024 * 1024);
   assert.equal(log.subarray(-20).toString(), 'GATEWAY_LOG_DRAINED\n');
 });
+
+test('stops a trickled health response at the absolute readiness deadline', async (t) => {
+  const fixture = await createGatewayFixture();
+  const manager = new GatewayManager(fixture.options);
+  t.after(async () => {
+    await manager.stop();
+    await fixture.cleanup();
+  });
+  await manager.start();
+  assert.equal(await manager.waitUntilHealthy(3_000), true);
+  fixture.trickleHealth(750);
+
+  const startedAt = Date.now();
+  const healthy = await manager.waitUntilHealthy(100);
+  const elapsedMs = Date.now() - startedAt;
+
+  assert.equal(healthy, false);
+  assert.ok(elapsedMs < 500, `readiness exceeded its deadline by ${elapsedMs - 100}ms`);
+});

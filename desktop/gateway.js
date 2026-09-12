@@ -132,6 +132,14 @@ class GatewayManager extends EventEmitter {
         resolve(false);
         return;
       }
+      let settled = false;
+      let deadlineTimer;
+      const finish = (healthy) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadlineTimer);
+        resolve(healthy);
+      };
       const request = this.http.get({
         host: '127.0.0.1',
         path: '/healthz',
@@ -139,13 +147,17 @@ class GatewayManager extends EventEmitter {
         timeout: Math.min(1_000, remaining),
       }, (response) => {
         response.resume();
-        resolve(response.statusCode === 200 && Date.now() <= deadline);
+        finish(response.statusCode === 200 && Date.now() <= deadline);
       });
-      request.once('error', () => resolve(false));
+      request.once('error', () => finish(false));
       request.once('timeout', () => {
         request.destroy();
-        resolve(false);
+        finish(false);
       });
+      deadlineTimer = setTimeout(() => {
+        request.destroy();
+        finish(false);
+      }, remaining);
     });
   }
 
