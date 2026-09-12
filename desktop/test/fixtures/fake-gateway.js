@@ -11,16 +11,29 @@ const http = require('node:http');
 const configIndex = process.argv.indexOf('--config');
 const config = fs.readFileSync(process.argv[configIndex + 1], 'utf8');
 const match = /^listen_addr:\\s*["']?127\\.0\\.0\\.1:(\\d+)["']?\\s*$/m.exec(config);
+const delayPath = require('node:path').join(process.cwd(), 'health-delay-ms');
+const shutdownOutputPath = require('node:path').join(process.cwd(), 'shutdown-output-bytes');
 
 if (!match) throw new Error('missing loopback listen_addr');
 
 const server = http.createServer((request, response) => {
-  response.writeHead(request.url === '/healthz' ? 200 : 404);
-  response.end();
+  const healthDelayMs = fs.existsSync(delayPath) ? Number(fs.readFileSync(delayPath, 'utf8')) : 0;
+  setTimeout(() => {
+    response.writeHead(request.url === '/healthz' ? 200 : 404);
+    response.end();
+  }, healthDelayMs);
 });
 
 server.listen(Number(match[1]), '127.0.0.1');
-process.on('SIGTERM', () => server.close(() => process.exit(0)));
+process.on('SIGTERM', () => server.close(() => {
+  if (!fs.existsSync(shutdownOutputPath)) process.exit(0);
+  const bytes = Number(fs.readFileSync(shutdownOutputPath, 'utf8'));
+  const writerSource = "setTimeout(() => { process.stdout.write(Buffer.alloc(" + bytes + ", 'x')); process.stdout.write('GATEWAY_LOG_DRAINED\\\\n', () => process.exit(0)); }, 100)";
+  require('node:child_process').spawn(process.execPath, ['-e', writerSource], {
+    stdio: ['ignore', process.stdout, process.stderr],
+  });
+  process.exit(0);
+}));
 `;
 
 async function availablePort() {
@@ -80,8 +93,24 @@ async function createGatewayFixture() {
     });
   }
 
+  function delayHealth(delayMs) {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, 'health-delay-ms'), String(delayMs));
+  }
+
+  function bufferOutputOnShutdown(bytes) {
+    fs.mkdirSync(userDataDir, { recursive: true });
+    fs.writeFileSync(path.join(userDataDir, 'shutdown-output-bytes'), String(bytes));
+  }
+
+  function readGatewayLog() {
+    return fs.readFileSync(path.join(userDataDir, 'logs', 'gateway.log'));
+  }
+
   return {
+    bufferOutputOnShutdown,
     cleanup,
+    delayHealth,
     isListening,
     options: {
       app: { getPath: (name) => name === 'userData' ? userDataDir : undefined },
@@ -93,6 +122,7 @@ async function createGatewayFixture() {
       spawn: trackedSpawn,
     },
     port,
+    readGatewayLog,
   };
 }
 

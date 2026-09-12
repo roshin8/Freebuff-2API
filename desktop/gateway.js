@@ -37,6 +37,7 @@ class GatewayManager extends EventEmitter {
     this.logPath = path.join(this.userDataDir, 'logs', 'gateway.log');
     this.restartWindow = new RestartWindow({ limit: 3, windowMs: 60_000 });
     this.child = null;
+    this.logCompletion = Promise.resolve();
     this.stopping = false;
     this.config = null;
   }
@@ -73,15 +74,29 @@ class GatewayManager extends EventEmitter {
       }
     );
     const logStream = this.fs.createWriteStream(this.logPath, { flags: 'a' });
+    let remainingOutputs = 2;
+    const loggingDone = new Promise((resolve) => {
+      const outputClosed = () => {
+        remainingOutputs -= 1;
+        if (remainingOutputs === 0) logStream.end();
+      };
+      child.stdout.once('close', outputClosed);
+      child.stderr.once('close', outputClosed);
+      logStream.once('finish', resolve);
+      logStream.once('error', (error) => {
+        this.logger.error('Gateway log stream failed', error);
+        resolve();
+      });
+    });
     child.stdout.pipe(logStream, { end: false });
     child.stderr.pipe(logStream, { end: false });
     this.child = child;
+    this.logCompletion = loggingDone;
 
     let handled = false;
     const handleFailure = (failure) => {
       if (handled) return;
       handled = true;
-      logStream.end();
       if (this.child === child) this.child = null;
       if (this.stopping) return;
 
@@ -101,25 +116,30 @@ class GatewayManager extends EventEmitter {
 
   async waitUntilHealthy(timeoutMs) {
     const deadline = Date.now() + timeoutMs;
-    do {
-      if (await this._isHealthy()) return true;
+    while (Date.now() < deadline) {
+      if (await this._isHealthy(deadline)) return true;
       const remaining = deadline - Date.now();
       if (remaining <= 0) return false;
       await new Promise((resolve) => setTimeout(resolve, Math.min(500, remaining)));
-    } while (Date.now() <= deadline);
+    }
     return false;
   }
 
-  _isHealthy() {
+  _isHealthy(deadline) {
     return new Promise((resolve) => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        resolve(false);
+        return;
+      }
       const request = this.http.get({
         host: '127.0.0.1',
         path: '/healthz',
         port: this.port(),
-        timeout: 1_000,
+        timeout: Math.min(1_000, remaining),
       }, (response) => {
         response.resume();
-        resolve(response.statusCode === 200);
+        resolve(response.statusCode === 200 && Date.now() <= deadline);
       });
       request.once('error', () => resolve(false));
       request.once('timeout', () => {
@@ -132,8 +152,12 @@ class GatewayManager extends EventEmitter {
   async stop() {
     this.stopping = true;
     const child = this.child;
+    const loggingDone = this.logCompletion;
     this.child = null;
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+      await loggingDone;
+      return;
+    }
 
     await new Promise((resolve) => {
       let killTimer;
@@ -145,6 +169,7 @@ class GatewayManager extends EventEmitter {
       child.kill('SIGTERM');
       killTimer = setTimeout(() => child.kill('SIGKILL'), 5_000);
     });
+    await loggingDone;
   }
 
   port() {
