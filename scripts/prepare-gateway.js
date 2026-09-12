@@ -5,6 +5,7 @@ const { loadUpstreamManifest, assertPinnedCheckout } = require('./upstream');
 
 function gatewayBuildPlan({ platform, arch, upstreamDir, resourcesDir }) {
   if (platform !== 'darwin') throw new Error('gateway preparation is macOS only');
+  if (arch !== 'arm64' && arch !== 'x64') throw new Error(`unsupported macOS architecture: ${arch}`);
 
   const binaryName = 'freebuff2api';
   return {
