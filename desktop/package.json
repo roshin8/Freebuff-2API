@@ -17,5 +17,19 @@
   },
   "dependencies": {
     "yaml": "^2.6.1"
+  },
+  "build": {
+    "appId": "com.roshin8.freebuff2api",
+    "productName": "Freebuff2API",
+    "asar": true,
+    "files": ["main.js", "preload.js", "platform.js", "gateway.js", "login.js", "app-policy.js", "icons/**/*"],
+    "extraResources": [{ "from": "generated/bin/freebuff2api", "to": "bin/freebuff2api" }],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "icon": "icons/icon.icns",
+      "identity": null,
+      "target": ["dmg", "zip"],
+      "artifactName": "Freebuff2API-${version}-${arch}.${ext}"
+    }
   }
 }
