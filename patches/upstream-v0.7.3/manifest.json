@@ -12,6 +12,14 @@
     "src/skills/gate.rs": {
       "original": "75fb213925f139c7c5d9d14f017aa81b191b570b0b97d7888e3e3cdcfb350db6",
       "patched": "d2d5f0c6e321eadde10cec212ba3a8b556d57706845b4bb993d41750113f21e3"
+    },
+    "src/import.rs": {
+      "original": "aafdbc6362e1c1718666d8bb7442902042edf7b7d4a2124ad7d0d58b5e2772a9",
+      "patched": "ba31da89f93916142472d580a8d3426859641f75e5b990301cccd6f1324936db"
+    },
+    "src/skills/store.rs": {
+      "original": "608601d7f9de7de937bf08c945e747969a82068ebe787fcdd67adb4745615583",
+      "patched": "d28d0cd615631a3000c1f363f994af88e83342c0bf161bfa3524f12dc5edd278"
     }
   }
 }

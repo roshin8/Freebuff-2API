@@ -127,6 +127,22 @@ const assert = require('node:assert/strict');
   const gate = await response.json();
   assert.ok(gate.issues.length > 0);
   assert.doesNotMatch(JSON.stringify(gate), /\p{Script=Han}/u);
+  const failures = [];
+  for (const [endpoint, body, message] of [
+    ['/api/tokens/import', { cookie: 'not a credential' }, 'No Bearer token or cookie could be extracted from the input'],
+    ['/api/skills', { name: 'Smoke validation', description: 'Use for test requests', body: '', force: true }, 'Skill instructions cannot be empty'],
+  ]) {
+    const rejected = await fetch('http://127.0.0.1:47821' + endpoint, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    const result = await rejected.json();
+    if (rejected.status !== 400 || result.ok !== false || result.message !== message || /\p{Script=Han}/u.test(JSON.stringify(result))) {
+      failures.push({ endpoint, status: rejected.status, result });
+    }
+  }
+  assert.deepEqual(failures, [], 'Invalid credential and empty skill instructions must fail in English');
+  console.log('Invalid credential and empty skill instructions errors are English');
   console.log('Dashboard diagnostics, cost, and validation messages are English');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 NODE
