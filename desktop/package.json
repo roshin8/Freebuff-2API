@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "check": "node --check main.js && node --check preload.js && node --check app-policy.js && node --check platform.js && node --check gateway.js && node --check login.js",
     "start": "electron .",
     "prepare:gateway": "node ../scripts/prepare-gateway.js",
     "dist:mac": "electron-builder --mac dmg zip --publish never",
