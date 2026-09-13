@@ -72,9 +72,22 @@ trap 'exit 143' TERM
 /usr/bin/ditto "$1" "$temporary_app"
 mkdir -p "$user_data"
 launched=true
+# Config::apply_env in the pinned gateway overrides config file values. Use
+# explicit launch values (not just the caller's environment) so LaunchServices
+# cannot carry another profile's paths, credentials, listeners, or runtime flags.
 /usr/bin/open --new -a "$temporary_app" \
   --stdout "$temporary_dir/app.stdout" --stderr "$temporary_dir/app.stderr" \
-  --env AUTH_TOKENS= --env API_KEYS= --env HTTP_PROXY= \
+  --env LISTEN_ADDR=127.0.0.1:47821 --env UPSTREAM_BASE_URL=https://www.codebuff.com \
+  --env AUTH_TOKENS= --env API_KEYS= --env ROTATION_INTERVAL=21600 --env REQUEST_TIMEOUT=900 \
+  --env HTTP_PROXY= --env HTTPS_PROXY= --env ALL_PROXY= --env http_proxy= --env https_proxy= --env all_proxy= \
+  --env NO_PROXY=127.0.0.1,localhost --env no_proxy=127.0.0.1,localhost \
+  --env AD_PROVIDERS=gravity --env FALLBACK_MODELS= --env TOKEN_SAVER=false \
+  --env "SQLITE_PATH=$user_data/data/freebuff2api.sqlite" --env "TOKENS_PATH=$user_data/data/tokens.json" \
+  --env "TELEMETRY_PATH=$user_data/data/telemetry.sqlite" --env "MEMORY_PATH=$user_data/data/memory.sqlite" \
+  --env "CRED_META_PATH=$user_data/data/cred_meta.json" --env "ACCOUNT_HISTORY_PATH=$user_data/data/account_history.jsonl" \
+  --env "WEB_THREADS_PATH=$user_data/data/web_threads.json" --env "SKILLS_DIR=$user_data/data/skills" \
+  --env THREAD_CLEANUP_INTERVAL=3600 --env THREAD_MAX_AGE_HOURS=24 --env MEMORY_ENABLED=false \
+  --env SKILLS_INJECT_MODE=roster --env MAX_ROSTER_TOKENS=2000 --env WEB_DIR= --env GATEWAY_PORT=47821 \
   --args "--user-data-dir=$user_data" --remote-debugging-address=127.0.0.1 --remote-debugging-port=0
 
 wait_for_health() {
