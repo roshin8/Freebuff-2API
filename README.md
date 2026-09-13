@@ -7,6 +7,13 @@ source. This wrapper builds the gateway from the audited upstream
 `v0.7.3` (`506240d7deef1272ed05313ed72f7d9f11785e89`). Wrapper releases use
 their own version numbers, beginning with `0.1.0`.
 
+The bundled dashboard is in English. Builds apply the audited
+[English UI patch](patches/upstream-v0.7.3/english-dashboard.patch) to the exact
+upstream pin before compiling. It covers dashboard labels, client examples,
+generated views, diagnostics, and gateway UI messages. Account names, your
+skills and memories, and messages from external services retain their original
+content.
+
 ## Download and install
 
 Download the asset that matches your Mac from the

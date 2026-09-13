@@ -1,0 +1,17 @@
+{
+  "commit": "506240d7deef1272ed05313ed72f7d9f11785e89",
+  "files": {
+    "src/web.rs": {
+      "original": "c0942701664a21c1c979e8c5099ced985fc87501caf36db7b3583a891f8592b1",
+      "patched": "15622371df5e28cbbe430b49d3f4ec57b279dcbad36788bb77e68ff36b2cca18"
+    },
+    "src/api.rs": {
+      "original": "43586978ed6783bc7a5e301e34744f5726df38cef2d1989c1e4c0828be52a707",
+      "patched": "4c894f8cdc59a1f7a8d90e76a20ce2eab9900d978ab9f6c77f04cc991c6652b9"
+    },
+    "src/skills/gate.rs": {
+      "original": "75fb213925f139c7c5d9d14f017aa81b191b570b0b97d7888e3e3cdcfb350db6",
+      "patched": "d2d5f0c6e321eadde10cec212ba3a8b556d57706845b4bb993d41750113f21e3"
+    }
+  }
+}

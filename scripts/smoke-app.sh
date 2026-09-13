@@ -111,6 +111,34 @@ echo "Health OK; app PID $app_pid, bundled gateway PID $gateway_pid"
 status="$(curl --silent --output "$temporary_dir/dashboard.html" --write-out '%{http_code}' --max-time 5 http://127.0.0.1:47821/ui)"
 [[ "$status" == 200 ]] || fail "dashboard returned HTTP $status"
 echo 'Dashboard HTTP 200'
+node <<'NODE'
+const assert = require('node:assert/strict');
+(async () => {
+  for (const endpoint of ['/api/doctor', '/api/usage/cost']) {
+    const response = await fetch('http://127.0.0.1:47821' + endpoint, { signal: AbortSignal.timeout(5000) });
+    assert.equal(response.status, 200);
+    assert.doesNotMatch(await response.text(), /\p{Script=Han}/u, endpoint + ' contains untranslated dashboard copy');
+  }
+  const response = await fetch('http://127.0.0.1:47821/api/skills/gate', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ body: '' }),
+    signal: AbortSignal.timeout(5000),
+  });
+  assert.equal(response.status, 200);
+  const gate = await response.json();
+  assert.ok(gate.issues.length > 0);
+  assert.doesNotMatch(JSON.stringify(gate), /\p{Script=Han}/u);
+  console.log('Dashboard diagnostics, cost, and validation messages are English');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+NODE
+node - "$temporary_dir/dashboard.html" <<'NODE'
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+assert.match(html, /<html lang="en">/);
+assert.match(html, /<title>Freebuff2API Dashboard<\/title>/);
+assert.doesNotMatch(html, /\p{Script=Han}/u);
+console.log('Dashboard HTML is English (no Han-script characters)');
+NODE
 
 # Observe the real renderer before interrupting its server. An independent
 # HTTP probe can succeed before Electron has begun its initial navigation.
@@ -126,8 +154,9 @@ const fs = require('node:fs');
       const response = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1000) });
       const targets = await response.json();
       if (targets.some(target => target.type === 'page'
-        && target.url === 'http://127.0.0.1:47821/ui' && target.title === 'Freebuff2API 控制台')) {
-        console.log('Renderer dashboard loaded: Freebuff2API 控制台');
+        && target.url === 'http://127.0.0.1:47821/ui' && target.title === 'Freebuff2API Dashboard'
+        && !/\p{Script=Han}/u.test(target.title))) {
+        console.log('Renderer dashboard loaded: Freebuff2API Dashboard');
         return;
       }
     } catch {}

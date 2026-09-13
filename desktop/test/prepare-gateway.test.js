@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { createHash } = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 const { gatewayBuildPlan, prepareGateway } = require('../../scripts/prepare-gateway');
 
 const pinnedCommit = '506240d7deef1272ed05313ed72f7d9f11785e89';
@@ -15,13 +17,23 @@ function createGatewayFixture(t) {
   const manifestPath = path.join(directory, 'upstream.json');
   fs.mkdirSync(path.dirname(source), { recursive: true });
   fs.writeFileSync(source, 'gateway executable');
+  const patchDir = path.join(directory, 'patch');
+  fs.mkdirSync(patchDir);
+  fs.mkdirSync(path.join(upstreamDir, 'src'));
+  fs.writeFileSync(path.join(upstreamDir, 'src/web.rs'), 'Chinese dashboard\n');
+  fs.writeFileSync(path.join(patchDir, 'english-dashboard.patch'), 'diff --git a/src/web.rs b/src/web.rs\n--- a/src/web.rs\n+++ b/src/web.rs\n@@ -1 +1 @@\n-Chinese dashboard\n+English dashboard\n');
+  const hash = text => createHash('sha256').update(text).digest('hex');
+  fs.writeFileSync(path.join(patchDir, 'manifest.json'), JSON.stringify({ commit: pinnedCommit, files: { 'src/web.rs': {
+    original: hash('Chinese dashboard\n'), patched: hash('English dashboard\n'),
+  } } }));
+  execFileSync('git', ['init', '--quiet', upstreamDir]);
   fs.writeFileSync(manifestPath, JSON.stringify({
     repository: 'https://github.com/lza6/Freebuff-2API',
     tag: 'v0.7.3',
     commit: pinnedCommit,
   }));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-  return { manifestPath, resourcesDir, source, upstreamDir };
+  return { manifestPath, resourcesDir, source, upstreamDir, patchDir };
 }
 
 test('plans an arm64 macOS gateway resource', () => {
@@ -76,8 +88,11 @@ test('copies a verified gateway with executable mode and cleared proxy environme
   const commands = [];
   const exec = (command, args, options) => {
     commands.push({ args, command, options });
-    if (command === 'git') return Buffer.from(`${pinnedCommit}\n`);
-    if (command === 'cargo') return Buffer.alloc(0);
+    if (command === 'git') return args.includes('rev-parse') ? Buffer.from(`${pinnedCommit}\n`) : execFileSync(command, args, options);
+    if (command === 'cargo') {
+      assert.equal(fs.readFileSync(path.join(fixture.upstreamDir, 'src/web.rs'), 'utf8'), 'English dashboard\n');
+      return Buffer.alloc(0);
+    }
     if (command === 'file') return Buffer.from(`${args[0]}: Mach-O 64-bit executable arm64`);
     throw new Error(`unexpected command: ${command}`);
   };
@@ -86,19 +101,22 @@ test('copies a verified gateway with executable mode and cleared proxy environme
 
   assert.equal(fs.readFileSync(plan.destination, 'utf8'), fs.readFileSync(fixture.source, 'utf8'));
   assert.equal(fs.statSync(plan.destination).mode & 0o777, 0o755);
-  assert.deepEqual(commands.map(({ command }) => command), ['git', 'cargo', 'file']);
-  assert.deepEqual(commands[1].args, ['build', '--release', '--locked']);
-  assert.equal(commands[1].options.cwd, fixture.upstreamDir);
-  assert.equal(commands[1].options.env.CARGO_HTTP_PROXY, '');
-  assert.equal(commands[1].options.env.HTTP_PROXY, '');
-  assert.equal(commands[1].options.env.HTTPS_PROXY, '');
-  assert.equal(commands[1].options.env.ALL_PROXY, '');
+  const cargo = commands.find(({ command }) => command === 'cargo');
+  assert.deepEqual(cargo.args, ['build', '--release', '--locked']);
+  assert.equal(cargo.options.cwd, fixture.upstreamDir);
+  assert.equal(cargo.options.env.CARGO_HTTP_PROXY, '');
+  assert.equal(cargo.options.env.HTTP_PROXY, '');
+  assert.equal(cargo.options.env.HTTPS_PROXY, '');
+  assert.equal(cargo.options.env.ALL_PROXY, '');
+  prepareGateway({ ...fixture, platform: 'darwin', arch: 'arm64', exec });
+  fs.appendFileSync(path.join(fixture.upstreamDir, 'src/web.rs'), 'drift\n');
+  assert.throws(() => prepareGateway({ ...fixture, platform: 'darwin', arch: 'arm64', exec }), /drift/);
 });
 
 test('rejects a prepared gateway with the wrong architecture', (t) => {
   const fixture = createGatewayFixture(t);
   const exec = (command, args) => {
-    if (command === 'git') return Buffer.from(`${pinnedCommit}\n`);
+    if (command === 'git') return args.includes('rev-parse') ? Buffer.from(`${pinnedCommit}\n`) : execFileSync(command, args);
     if (command === 'cargo') return Buffer.alloc(0);
     if (command === 'file') return Buffer.from(`${args[0]}: Mach-O 64-bit executable x86_64`);
     throw new Error(`unexpected command: ${command}`);

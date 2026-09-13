@@ -1,0 +1,2543 @@
+diff --git a/src/api.rs b/src/api.rs
+index 82b10e1..b9e9798 100644
+--- a/src/api.rs
++++ b/src/api.rs
+@@ -288,7 +288,7 @@ async fn handle_account_balance(State(st): State<AppState>, headers: HeaderMap)
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "ok": false, "message": "未找到 web 版 Cookie 凭证。请在浏览器登录 freebuff.com 后从 DevTools 复制完整 Cookie（含 __Secure-next-auth.session-token=...）并 POST /api/tokens/import 导入" })),
++                Json(serde_json::json!({ "ok": false, "message": "No web cookie found. Sign in at freebuff.com, copy the full Cookie header from DevTools (including __Secure-next-auth.session-token=...), and import it with POST /api/tokens/import." })),
+             )
+                 .into_response();
+         }
+@@ -399,7 +399,7 @@ fn internal_err(e: &anyhow::Error) -> Response {
+ fn admin_denied() -> Response {
+     (
+         StatusCode::UNAUTHORIZED,
+-        Json(serde_json::json!({ "ok": false, "message": "unauthorized: 管理端点需要 API key（config.json api_keys），本地未配置时仅本机可访问" })),
++        Json(serde_json::json!({ "ok": false, "message": "unauthorized: Admin endpoints require an API key (api_keys in the gateway configuration). Without a configured key, only local access is allowed." })),
+     )
+         .into_response()
+ }
+@@ -429,7 +429,7 @@ async fn handle_web_chat(State(st): State<AppState>, headers: HeaderMap, body: a
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "error": { "message": "未导入 web Cookie 凭证。请 POST /api/tokens/import 粘贴 Cookie", "type": "invalid_request_error" } })),
++                Json(serde_json::json!({ "error": { "message": "No web cookie imported. Submit a cookie to POST /api/tokens/import.", "type": "invalid_request_error" } })),
+             )
+                 .into_response();
+         }
+@@ -585,7 +585,7 @@ async fn handle_web_chat(State(st): State<AppState>, headers: HeaderMap, body: a
+                     "request",
+                     Some(&req_id),
+                     format!(
+-                        "{model_name} web 流式完成 {bytes}B / {images_count} 图（首字节 {}ms / 总 {:.2}s）",
++                        "{model_name} web stream completed: {bytes}B / {images_count} images (first byte {}ms / total {:.2}s)",
+                         ttft.unwrap_or(0),
+                         total_ms as f64 / 1000.0
+                     ),
+@@ -685,7 +685,7 @@ async fn web_bridge_openai(
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "error": { "message": "messages 里没有可发送的用户内容", "type": "invalid_request_error" } })),
++                Json(serde_json::json!({ "error": { "message": "messages contains no user content to send", "type": "invalid_request_error" } })),
+             )
+                 .into_response();
+         }
+@@ -745,7 +745,7 @@ async fn web_bridge_openai(
+             });
+             return (
+                 StatusCode::BAD_GATEWAY,
+-                Json(serde_json::json!({ "error": { "message": format!("上游 web 协议请求失败：{e}"), "type": "server_error" } })),
++                Json(serde_json::json!({ "error": { "message": format!("Upstream web request failed: {e}"), "type": "server_error" } })),
+             )
+                 .into_response();
+         }
+@@ -832,7 +832,7 @@ async fn web_bridge_openai(
+                 total_ms as i64,
+                 status,
+                 bridge_kind.unwrap_or(""),
+-                bridge_kind.map(|k| format!("上游桥接流内嵌错误（{k}）：凭证可能失效或额度耗尽")).as_deref().unwrap_or(""),
++                bridge_kind.map(|k| format!("Upstream stream error ({k}): credentials may have expired or quota may be exhausted")).as_deref().unwrap_or(""),
+                 &req_id_track,
+             )
+             .ok();
+@@ -948,13 +948,13 @@ async fn openai_error_to_claude(resp: Response, model: &str) -> Response {
+         Err(_) => {
+             return (
+                 StatusCode::BAD_GATEWAY,
+-                Json(serde_json::json!({ "type": "error", "error": { "type": "api_error", "message": "桥接响应不是合法 JSON" } })),
++                Json(serde_json::json!({ "type": "error", "error": { "type": "api_error", "message": "Bridge response is not valid JSON" } })),
+             )
+                 .into_response();
+         }
+     };
+     if let Some(err) = v.get("error") {
+-        let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("上游错误");
++        let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Upstream error");
+         let code = if status == StatusCode::UNAUTHORIZED { "authentication_error" } else { "api_error" };
+         return (
+             status,
+@@ -1083,7 +1083,7 @@ async fn aggregate_bridge_sse(
+             Err(e) => {
+                 return (
+                     StatusCode::BAD_GATEWAY,
+-                    Json(serde_json::json!({ "error": { "message": format!("上游流中断：{e}"), "type": "server_error" } })),
++                    Json(serde_json::json!({ "error": { "message": format!("Upstream stream interrupted: {e}"), "type": "server_error" } })),
+                 )
+                     .into_response();
+             }
+@@ -1100,7 +1100,7 @@ async fn aggregate_bridge_sse(
+         }
+         let Ok(v) = serde_json::from_str::<serde_json::Value>(data) else { continue };
+         if let Some(err) = v.get("error") {
+-            let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("上游错误");
++            let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Upstream error");
+             return (
+                 StatusCode::BAD_GATEWAY,
+                 Json(serde_json::json!({ "error": { "message": msg, "type": "server_error" } })),
+@@ -1124,7 +1124,7 @@ async fn aggregate_bridge_sse(
+     if content.is_empty() && finish_reason.is_none() {
+         return (
+             StatusCode::BAD_GATEWAY,
+-            Json(serde_json::json!({ "error": { "message": "上游未返回任何内容（凭证可能已失效，请在面板重新登录）", "type": "server_error" } })),
++            Json(serde_json::json!({ "error": { "message": "Upstream returned no content. Credentials may have expired; sign in again from the dashboard.", "type": "server_error" } })),
+         )
+             .into_response();
+     }
+@@ -1175,7 +1175,7 @@ async fn handle_token_import(State(st): State<AppState>, headers: HeaderMap, bod
+         Err(_) => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "ok": false, "message": "输入不是合法 UTF-8 文本" })),
++                Json(serde_json::json!({ "ok": false, "message": "Input is not valid UTF-8 text" })),
+             )
+                 .into_response();
+         }
+@@ -1208,7 +1208,7 @@ async fn handle_token_import(State(st): State<AppState>, headers: HeaderMap, bod
+     match crate::import::persist_tokens(&tokens_path, &tokens) {
+         Ok(added) => {
+             if added.is_empty() {
+-                return Json(serde_json::json!({ "ok": true, "added": 0, "message": "token 已存在，未重复添加" }))
++                return Json(serde_json::json!({ "ok": true, "added": 0, "message": "Token already exists; duplicate ignored" }))
+                     .into_response();
+             }
+             // 热更新到账号池。
+@@ -1301,11 +1301,11 @@ async fn handle_token_check(State(st): State<AppState>, headers: HeaderMap, body
+         .and_then(|v| v.get("id").and_then(|x| x.as_str()).map(String::from))
+     {
+         Some(v) if !v.is_empty() => v,
+-        _ => return bad_req("缺少 id 参数（凭证列表里的 id 字段）"),
++        _ => return bad_req("Missing id (the id field from the credential list)"),
+     };
+     let (cookie, tok) = match cookie_by_id(&st, &id) {
+         Some(v) => v,
+-        None => return bad_req("未找到该凭证（可能已被删除，请刷新列表）"),
++        None => return bad_req("Credential not found. It may have been deleted; refresh the list."),
+     };
+     let client = match crate::web_protocol::WebClient::new(cookie, "glm-5.3-flash".into()) {
+         Ok(c) => c,
+@@ -1331,7 +1331,7 @@ async fn handle_token_check(State(st): State<AppState>, headers: HeaderMap, body
+                 .err()
+                 .map(|e| e.to_string())
+                 .or_else(|| quota.as_ref().err().map(|e| e.to_string()))
+-                .unwrap_or_else(|| "上游未返回登录账号（凭证已失效或未登录）".into()),
++                .unwrap_or_else(|| "Upstream returned no signed-in account. Credentials have expired or are signed out.".into()),
+         );
+     }
+     if let Err(e) = st.meta.upsert(meta.clone()) {
+@@ -1342,14 +1342,14 @@ async fn handle_token_check(State(st): State<AppState>, headers: HeaderMap, body
+         if ok { "info" } else { "warn" },
+         "account",
+         None,
+-        format!("凭证检查 {}：{}", mask(&tok.token), if ok { "有效" } else { "可能已失效" }),
++        format!("Credential check {}: {}", mask(&tok.token), if ok { "Valid" } else { "Possibly expired" }),
+     );
+     Json(serde_json::json!({
+         "ok": ok,
+         "valid": ok,
+         "id": id,
+         "meta": meta,
+-        "message": if ok { "凭证有效，账号信息已更新".to_string() } else { meta.error.clone().unwrap_or_else(|| "凭证可能已失效".into()) },
++        "message": if ok { "Credential valid; account details updated".to_string() } else { meta.error.clone().unwrap_or_else(|| "Credential may have expired".into()) },
+     }))
+     .into_response()
+ }
+@@ -1364,25 +1364,25 @@ async fn handle_token_delete(State(st): State<AppState>, headers: HeaderMap, bod
+         .and_then(|v| v.get("id").and_then(|x| x.as_str()).map(String::from))
+     {
+         Some(v) if !v.is_empty() => v,
+-        _ => return bad_req("缺少 id 参数（凭证列表里的 id 字段）"),
++        _ => return bad_req("Missing id (the id field from the credential list)"),
+     };
+     match crate::import::delete_token(&st.cfg.tokens_path, &id) {
+         Ok(Some(removed)) => {
+             let in_pool = st.pool.remove_account(&removed.token).await;
+             let _ = st.meta.remove(&id);
+-            st.logs.emit("warn", "account", None, format!("已删除凭证 {}", mask(&removed.token)));
++            st.logs.emit("warn", "account", None, format!("Deleted credential {}", mask(&removed.token)));
+             Json(serde_json::json!({
+                 "ok": true,
+                 "removed": mask(&removed.token),
+                 "removed_from_pool": in_pool,
+-                "message": if in_pool { "凭证已删除（含运行中的账号池）" } else { "凭证已删除" },
++                "message": if in_pool { "Credential deleted from storage and the active account pool" } else { "Credential deleted" },
+             }))
+             .into_response()
+         }
+-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "ok": false, "message": "未找到该凭证（可能已被删除）" }))).into_response(),
++        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "ok": false, "message": "Credential not found; it may have been deleted" }))).into_response(),
+         Err(e) => (
+             StatusCode::INTERNAL_SERVER_ERROR,
+-            Json(serde_json::json!({ "ok": false, "message": format!("删除失败：{e}") })),
++            Json(serde_json::json!({ "ok": false, "message": format!("Delete failed: {e}") })),
+         )
+             .into_response(),
+     }
+@@ -1437,7 +1437,7 @@ async fn handle_guide(State(st): State<AppState>, headers: HeaderMap) -> Respons
+             "masked": masked,
+         },
+         // 未配置 key 时给客户端填什么（本机直连场景）
+-        "api_key_hint": if keys.is_empty() { "sk-local（未配置 api_keys，任意非空字符串即可）" } else { "上面显示的 Key（面板请求会自动带上）" },
++        "api_key_hint": if keys.is_empty() { "sk-local (api_keys is not configured; any nonempty string works)" } else { "The key shown above (automatically included in dashboard requests)" },
+         "models_count": models.len(),
+         "models_sample": models.iter().take(8).cloned().collect::<Vec<_>>(),
+         "credential": web_cookie,
+@@ -1464,7 +1464,7 @@ async fn handle_login_result(State(st): State<AppState>, headers: HeaderMap) ->
+             // 读取即消费（一次性结果）
+             let _ = std::fs::remove_file(path);
+             let v: serde_json::Value = serde_json::from_str(&text)
+-                .unwrap_or(serde_json::json!({ "ok": false, "message": "结果文件损坏" }));
++                .unwrap_or(serde_json::json!({ "ok": false, "message": "Result file is invalid" }));
+             Json(v).into_response()
+         }
+         Err(_) => Json(serde_json::json!({ "ok": false, "consumed": true })).into_response(),
+@@ -1491,10 +1491,10 @@ async fn handle_login_embed(State(st): State<AppState>, headers: HeaderMap, _bod
+         .unwrap_or(47821);
+     let spawned = crate::login_window::spawn_login_window(port);
+     if spawned {
+-        st.logs.emit("info", "login", None, "内嵌 WebView2 登录窗口已弹出（等待用户完成 GitHub 登录）");
++        st.logs.emit("info", "login", None, "Embedded WebView2 login window opened; waiting for GitHub sign-in");
+         Json(serde_json::json!({
+             "ok": true,
+-            "message": "登录窗口已弹出，完成 GitHub 登录后凭证将自动入库",
++            "message": "Login window opened. Complete GitHub sign-in to import credentials automatically.",
+         }))
+         .into_response()
+     } else {
+@@ -1504,7 +1504,7 @@ async fn handle_login_embed(State(st): State<AppState>, headers: HeaderMap, _bod
+             StatusCode::CONFLICT,
+             Json(serde_json::json!({
+                 "ok": false,
+-                "message": "登录窗口未能启动——可能已有一个登录窗口在运行（请查看任务栏），或当前平台不支持 WebView2。可改用剪贴板/手动导入。",
++                "message": "Could not open login window. A window may already be running, or this platform may not support WebView2. On macOS, use Login New Account from the tray menu, or import manually.",
+             })),
+         )
+             .into_response()
+@@ -1532,7 +1532,7 @@ async fn handle_extension_bundle(State(st): State<AppState>, headers: HeaderMap,
+         .body(Body::from(zip))
+     {
+         Ok(r) => r,
+-        Err(e) => internal_err(&anyhow::Error::msg(format!("构建下载响应失败: {e}"))),
++        Err(e) => internal_err(&anyhow::Error::msg(format!("Could not construct download response: {e}"))),
+     }
+ }
+ 
+@@ -1544,7 +1544,7 @@ async fn handle_config_api_key(State(st): State<AppState>, headers: HeaderMap, b
+     }
+     let v: serde_json::Value = match serde_json::from_slice(&body) {
+         Ok(v) => v,
+-        Err(_) => return bad_req("body 必须是 JSON"),
++        Err(_) => return bad_req("body must be JSON"),
+     };
+     let action = v.get("action").and_then(|x| x.as_str()).unwrap_or("generate");
+     let current = api_keys_of(&st);
+@@ -1565,18 +1565,18 @@ async fn handle_config_api_key(State(st): State<AppState>, headers: HeaderMap, b
+         "set" => {
+             let k = v.get("key").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+             if k.len() < 8 {
+-                return bad_req("Key 太短（至少 8 个字符）");
++                return bad_req("Key is too short (at least 8 characters required)");
+             }
+             vec![k]
+         }
+         "clear" => {
+             // 安全守卫：非本机监听时禁止清空（否则管理端点/凭证对网络裸奔）
+             if !crate::config::is_loopback_listen(&st.cfg.listen_addr) {
+-                return bad_req("当前监听的是非本机地址，禁止清空 API Key（否则面板与凭证会暴露给网络）");
++                return bad_req("Cannot clear the API key while listening on a nonlocal address; this would expose the dashboard and credentials to the network");
+             }
+             vec![]
+         }
+-        other => return bad_req(&format!("未知 action: {other}（支持 generate/set/clear）")),
++        other => return bad_req(&format!("Unknown action: {other} (supported: generate/set/clear)")),
+     };
+ 
+     // 持久化到 config.json（用 Value 往返合并，避免覆盖用户其他配置）
+@@ -1611,7 +1611,7 @@ async fn handle_config_api_key(State(st): State<AppState>, headers: HeaderMap, b
+     }
+ 
+     set_api_keys(&st, new_keys.clone());
+-    st.logs.emit("warn", "config", None, format!("下游 API Key 已更新（{} 个）", new_keys.len()));
++    st.logs.emit("warn", "config", None, format!("Client API keys updated ({} keys)", new_keys.len()));
+     Json(serde_json::json!({
+         "ok": true,
+         "action": action,
+@@ -1622,9 +1622,9 @@ async fn handle_config_api_key(State(st): State<AppState>, headers: HeaderMap, b
+         "previous_count": current.len(),
+         "persisted": path.is_some(),
+         "message": match action {
+-            "generate" => "已生成新的 API Key 并立即生效（同时写入 config.json）",
+-            "set" => "API Key 已更新并立即生效",
+-            _ => "API Key 已清除（本机直连模式）",
++            "generate" => "New API key generated and activated (saved to the gateway configuration)",
++            "set" => "API key updated and activated",
++            _ => "API key cleared (local access mode)",
+         },
+     }))
+     .into_response()
+@@ -1656,7 +1656,7 @@ async fn handle_account_detail(State(st): State<AppState>, headers: HeaderMap, b
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "ok": false, "message": "未找到 web Cookie 凭证" })),
++                Json(serde_json::json!({ "ok": false, "message": "No web cookie found" })),
+             )
+                 .into_response();
+         }
+@@ -1889,8 +1889,8 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+         if attempt == 0 {
+             st.telemetry.event(&req_id, "route", &format!("{requested} -> {model} via {account_name}"));
+         } else {
+-            st.telemetry.event(&req_id, "retry", &format!("第 {} 次尝试 via {account_name}", attempt + 1));
+-            st.logs.emit("warn", "retry", Some(&req_id), format!("换号重试（第 {} 次）→ {account_name}", attempt + 1));
++            st.telemetry.event(&req_id, "retry", &format!("Attempt {} via {account_name}", attempt + 1));
++            st.logs.emit("warn", "retry", Some(&req_id), format!("Retry with another account (attempt {}) → {account_name}", attempt + 1));
+         }
+ 
+         // 确保会话
+@@ -1945,7 +1945,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+                 st.pool.update_score(&account_name, -20.0).await;
+                 if code == 401 || code == 403 {
+                     st.pool
+-                        .mark_cooldown(&account_name, std::time::Duration::from_secs(600), &format!("上游 {code}，token 疑似失效"))
++                        .mark_cooldown(&account_name, std::time::Duration::from_secs(600), &format!("Upstream {code}; token may have expired"))
+                         .await;
+                 }
+                 last_status = code;
+@@ -1954,7 +1954,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+                 let should_switch = kind.is_retryable()
+                     || matches!(kind, crate::errors::ErrorKind::AuthExpired);
+                 if should_switch && attempt + 1 < retry_policy.max_attempts {
+-                    st.telemetry.event(&req_id, "retry_scheduled", &format!("HTTP {code}（{}），换号重试", kind.as_str()));
++                    st.telemetry.event(&req_id, "retry_scheduled", &format!("HTTP {code} ({}); retrying with another account", kind.as_str()));
+                     continue;
+                 }
+                 break;
+@@ -1989,12 +1989,12 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+                 stream: false,
+                 error_kind: Some(crate::errors::classify(last_status, &last_error).as_str().to_string()),
+                 error_excerpt: Some(last_error.chars().take(300).collect()),
+-                route_reason: Some(format!("{} -> {}（{} 次尝试均失败）", requested, model, attempt_count)),
++                route_reason: Some(format!("{} -> {} (all {} attempts failed)", requested, model, attempt_count)),
+                 api_key: Some(api_key.clone()),
+                 client_ip: Some(client_ip.clone()),
+             });
+             st.logs
+-                .emit("error", "request", Some(&req_id), format!("{model} 全部 {attempt_count} 次尝试失败: {}", last_error.chars().take(120).collect::<String>()));
++                .emit("error", "request", Some(&req_id), format!("{model}: all {attempt_count} attempts failed: {}", last_error.chars().take(120).collect::<String>()));
+             // 有上游 HTTP 响应（非网络类失败）：透传上游状态码，保持客户端重试/退避语义
+             if (400..600).contains(&last_status) {
+                 return (
+@@ -2031,12 +2031,12 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+     if status.is_success() {
+         st.pool.update_score(&account_name, 10.0).await;
+         st.pool.mark_success(&account_name).await; // 熔断器：驱动 HalfOpen → Closed 恢复
+-        st.telemetry.event(&req_id, "upstream_ok", &format!("HTTP {} 建连 {}ms", status.as_u16(), latency_ms));
++        st.telemetry.event(&req_id, "upstream_ok", &format!("HTTP {}; connected in {}ms", status.as_u16(), latency_ms));
+         // run 收尾：FINISH 上报（释放上游 run 计数；失败不影响响应）
+         if let Err(e) = st.client.finish_run(&token, &run_id, 1).await {
+             tracing::debug!("finish_run 失败（不影响响应）: {e}");
+         }
+-        st.logs.emit("info", "request", Some(&req_id), format!("{model} 上游 200，准备转发（{latency_ms}ms 建连）"));
++        st.logs.emit("info", "request", Some(&req_id), format!("{model}: upstream 200, forwarding response (connected in {latency_ms}ms)"));
+     } else {
+         st.usage
+             .record_ex(&account_name, &model, 0, 0, latency_ms, status.as_u16() as i64, &api_key, &client_ip, &req_id)
+@@ -2046,7 +2046,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+         let code = status.as_u16();
+         if code == 401 || code == 403 {
+             st.pool
+-                .mark_cooldown(&account_name, std::time::Duration::from_secs(600), &format!("上游 {code}，token 疑似失效"))
++                .mark_cooldown(&account_name, std::time::Duration::from_secs(600), &format!("Upstream {code}; token may have expired"))
+                 .await;
+         }
+         let kind = crate::retry::classify_status(code).as_str();
+@@ -2069,7 +2069,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+             api_key: Some(api_key.clone()),
+             client_ip: Some(client_ip.clone()),
+         });
+-        st.logs.emit("warn", "request", Some(&req_id), format!("上游 {code}（{kind}），账号 {account_name} 已扣分{}", if code == 401 || code == 403 { "并冷却 10 分钟" } else { "" }));
++        st.logs.emit("warn", "request", Some(&req_id), format!("Upstream {code} ({kind}); account {account_name} score reduced{}", if code == 401 || code == 403 { " with a 10-minute cooldown" } else { "" }));
+     }
+ 
+     // 流式转发上游响应（真实增量透传 + 上游错误原样透传）
+@@ -2133,7 +2133,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+                 api_key: Some(key.clone()),
+                 client_ip: Some(ip.clone()),
+             });
+-            logs.emit("warn", "request", Some(&rid), format!("{mdl} 上游 200 但 body 含错误码 {code}"));
++            logs.emit("warn", "request", Some(&rid), format!("{mdl}: upstream 200 but response body contains error code {code}"));
+             return (
+                 StatusCode::BAD_GATEWAY,
+                 Json(serde_json::json!({
+@@ -2171,7 +2171,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+             api_key: Some(key.clone()),
+             client_ip: Some(ip.clone()),
+         });
+-        logs.emit("info", "request", Some(&rid), format!("{mdl} 完成 {}+{} tok（{:.2}s）", pt, ct, total_ms as f64 / 1000.0));
++        logs.emit("info", "request", Some(&rid), format!("{mdl} completed: {}+{} tokens ({:.2}s)", pt, ct, total_ms as f64 / 1000.0));
+         return builder.body(Body::from(bytes)).unwrap().into_response();
+     }
+ 
+@@ -2220,7 +2220,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+                         api_key: Some(key.clone()),
+                         client_ip: Some(ip.clone()),
+                     });
+-                    logs.emit("error", "request", Some(&rid), format!("{mdl} 流中断: {e}"));
++                    logs.emit("error", "request", Some(&rid), format!("{mdl} stream interrupted: {e}"));
+                     return;
+                 }
+             }
+@@ -2247,7 +2247,7 @@ async fn handle_chat_completions(State(st): State<AppState>, headers: HeaderMap,
+             api_key: Some(key.clone()),
+             client_ip: Some(ip.clone()),
+         });
+-        logs.emit("info", "request", Some(&rid), format!("{mdl} 流式完成 {}+{} tok（首字节 {}ms / 总 {:.2}s）", totals.0, totals.1, ttft.unwrap_or(0), total_ms as f64 / 1000.0));
++        logs.emit("info", "request", Some(&rid), format!("{mdl} stream completed: {}+{} tokens (first byte {}ms / total {:.2}s)", totals.0, totals.1, ttft.unwrap_or(0), total_ms as f64 / 1000.0));
+     });
+     let body_stream = futures::stream::unfold(rx, |mut rx| async move {
+         rx.recv().await.map(|item| (item, rx))
+@@ -2509,7 +2509,7 @@ async fn handle_claude_messages(State(st): State<AppState>, headers: HeaderMap,
+                 api_key: Some(key),
+                 client_ip: None,
+             });
+-            logs.emit(if status == 200 { "info" } else { "error" }, "request", Some(&rid), format!("{mdl} Claude 流式完成 {}+{} tok（{:.2}s）", totals.0, totals.1, total_ms as f64 / 1000.0));
++            logs.emit(if status == 200 { "info" } else { "error" }, "request", Some(&rid), format!("{mdl} Claude stream completed: {}+{} tokens ({:.2}s)", totals.0, totals.1, total_ms as f64 / 1000.0));
+         });
+         let body_stream = futures::stream::unfold(rx, |mut rx| async move {
+             rx.recv().await.map(|item| (item, rx))
+@@ -2699,7 +2699,7 @@ async fn handle_skills_upsert(State(st): State<AppState>, headers: HeaderMap, bo
+             .unwrap_or_default(),
+     };
+     if input.name.trim().is_empty() || input.description.trim().is_empty() {
+-        return bad_req("name 和 description 不能为空");
++        return bad_req("name and description are required");
+     }
+     // 质量门：对 name/description/body 统一校验；未通过默认拒绝（force:true 可强制保存）
+     let force = v.get("force").and_then(|x| x.as_bool()).unwrap_or(false);
+@@ -2709,14 +2709,14 @@ async fn handle_skills_upsert(State(st): State<AppState>, headers: HeaderMap, bo
+     if !issues.is_empty() && !force {
+         return (
+             StatusCode::BAD_REQUEST,
+-            Json(serde_json::json!({ "ok": false, "message": "质量门未通过（如确认无误可加 force:true 强制保存）", "issues": issues })),
++            Json(serde_json::json!({ "ok": false, "message": "Quality check failed. Use force:true to save after reviewing the issues.", "issues": issues })),
+         )
+             .into_response();
+     }
+     match st.skills.upsert(id, input) {
+         Ok(s) => {
+             let gate = st.skills.gate(&s.body);
+-            st.logs.emit("info", "skills", None, format!("技能已保存: {}", s.name));
++            st.logs.emit("info", "skills", None, format!("Skill saved: {}", s.name));
+             Json(serde_json::json!({ "ok": true, "skill": s, "gate": gate })).into_response()
+         }
+         Err(e) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "ok": false, "message": e.to_string() }))).into_response(),
+@@ -2958,7 +2958,7 @@ async fn handle_usage_cost(State(st): State<AppState>, headers: HeaderMap) -> Re
+         "requests_per_hour": requests_30m * 2,
+         "totals": totals,
+         "estimated": true,
+-        "cost_source": "免费层（无货币成本记录）",
++        "cost_source": "Free tier (no monetary cost recorded)",
+     }))
+     .into_response()
+ }
+@@ -2980,7 +2980,7 @@ fn write_guard(headers: &HeaderMap, st: &AppState) -> Option<Response> {
+         return Some(admin_denied());
+     }
+     if !json_write_ok(headers) {
+-        return Some(bad_req("写操作要求 content-type: application/json（CSRF 防护）"));
++        return Some(bad_req("Writes require content-type: application/json (CSRF protection)"));
+     }
+     None
+ }
+@@ -3094,7 +3094,7 @@ async fn sweep_threads(st: &AppState, max_age_hours: u64, dry_run: bool) -> anyh
+     }
+     let (cookie, _, _) = match pick_web_cookie(st) {
+         Some(v) => v,
+-        None => anyhow::bail!("需要 web Cookie 凭证才能清理上游会话"),
++        None => anyhow::bail!("A web cookie is required to clean up upstream sessions"),
+     };
+     let client = crate::web_protocol::WebClient::new(cookie, "glm-5.3-flash".into())
+         .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+@@ -3110,9 +3110,9 @@ async fn sweep_threads(st: &AppState, max_age_hours: u64, dry_run: bool) -> anyh
+                     "cleanup",
+                     None,
+                     if found {
+-                        format!("已删除上游会话 {id}")
++                        format!("Deleted upstream session {id}")
+                     } else {
+-                        format!("会话 {id} 上游已不存在，移除本地记录")
++                        format!("Session {id} no longer exists upstream; removed local record")
+                     },
+                 );
+             }
+@@ -3172,7 +3172,7 @@ pub async fn thread_cleanup_loop(st: AppState) {
+                 "info",
+                 "cleanup",
+                 None,
+-                format!("自动清理：删除 {} 个过期会话（{} 个失败），剩余 {}", o.deleted, o.failed.len(), o.remaining),
++                format!("Automatic cleanup: deleted {} expired sessions ({} failures), {} remaining", o.deleted, o.failed.len(), o.remaining),
+             ),
+             Err(e) => tracing::warn!("自动清理会话未执行: {e}"),
+         }
+@@ -3202,7 +3202,7 @@ async fn handle_threads_cleanup(State(st): State<AppState>, headers: HeaderMap,
+             "total": outcome.total,
+             "expired": outcome.expired,
+             "thread_ids": outcome.expired_ids,
+-            "message": format!("预演：{} 个会话超过 {} 小时可清理（真实删除请传 dry_run:false）", outcome.expired, max_age_hours),
++            "message": format!("Dry run: {} sessions older than {} hours can be deleted (use dry_run:false to delete)", outcome.expired, max_age_hours),
+         }))
+         .into_response();
+     }
+@@ -3214,9 +3214,9 @@ async fn handle_threads_cleanup(State(st): State<AppState>, headers: HeaderMap,
+         "failed_ids": outcome.failed,
+         "remaining": outcome.remaining,
+         "message": if outcome.failed.is_empty() {
+-            format!("已清理 {} 个会话", outcome.deleted)
++            format!("Deleted {} sessions", outcome.deleted)
+         } else {
+-            format!("已清理 {} 个；{} 个删除失败（上游端点待验证，记录已保留）", outcome.deleted, outcome.failed.len())
++            format!("Deleted {}; {} deletions failed (upstream endpoint unverified; records retained)", outcome.deleted, outcome.failed.len())
+         },
+     }))
+     .into_response()
+@@ -3265,11 +3265,11 @@ async fn handle_memory_upsert(State(st): State<AppState>, headers: HeaderMap, bo
+         .collect();
+     let is_static = v.get("is_static").and_then(|x| x.as_bool()).unwrap_or(false);
+     if title.is_empty() || content.trim().is_empty() {
+-        return bad_req("title 和 content 不能为空");
++        return bad_req("title and content are required");
+     }
+     match st.memory.upsert(kind, &title, &content, is_static) {
+         Ok(m) => {
+-            st.logs.emit("info", "memory", None, format!("记忆已保存: {}", m.title));
++            st.logs.emit("info", "memory", None, format!("Memory saved: {}", m.title));
+             Json(serde_json::json!({ "ok": true, "memory": m })).into_response()
+         }
+         Err(e) => (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "ok": false, "message": e.to_string() }))).into_response(),
+@@ -3317,10 +3317,10 @@ async fn handle_memory_toggle(State(st): State<AppState>, headers: HeaderMap, bo
+     }
+     let v: serde_json::Value = match serde_json::from_slice(&body) {
+         Ok(v) => v,
+-        Err(_) => return bad_req("body 必须是 JSON"),
++        Err(_) => return bad_req("body must be JSON"),
+     };
+     let Some(enabled) = v.get("enabled").and_then(|x| x.as_bool()) else {
+-        return bad_req("缺少 enabled（bool）");
++        return bad_req("Missing enabled (boolean)");
+     };
+     // 热生效：Config 在 Arc 后面不可变，用与 api_keys 同款的 RwLock 槽覆盖读取。
+     // 简单做法：直接改 Arc 不可行——这里用 AtomicBool 语义借道 api_keys 模式太重，
+@@ -3362,13 +3362,13 @@ async fn handle_memory_toggle(State(st): State<AppState>, headers: HeaderMap, bo
+         "info",
+         "memory",
+         None,
+-        format!("记忆层已{}", if enabled { "开启（自动记录 + 注入）" } else { "关闭（不记录不注入）" }),
++        format!("Memory {}", if enabled { "enabled (automatic recording and context inclusion)" } else { "disabled (no recording or context inclusion)" }),
+     );
+     Json(serde_json::json!({
+         "ok": true,
+         "enabled": enabled,
+         "persisted": persisted,
+-        "message": if enabled { "记忆层已开启：自动记录你的偏好与纠正，并在相关对话时注入" } else { "记忆层已关闭：不再自动记录，也不再注入任何记忆内容" },
++        "message": if enabled { "Memory enabled: preferences and corrections are recorded and included in relevant conversations" } else { "Memory disabled: no automatic recording or memory context inclusion" },
+     }))
+     .into_response()
+ }
+@@ -3440,57 +3440,57 @@ async fn handle_doctor(State(st): State<AppState>, headers: HeaderMap) -> Respon
+ 
+     // 1. 配置
+     checks.push(serde_json::json!({
+-        "id": "config", "label": "配置", "state": "ok",
+-        "detail": format!("监听 {}，上游 {}", st.cfg.listen_addr, st.cfg.upstream_base_url),
++        "id": "config", "label": "Configuration", "state": "ok",
++        "detail": format!("Listening on {}; upstream {}", st.cfg.listen_addr, st.cfg.upstream_base_url),
+     }));
+     // 2. 账号池
+     let snap = st.pool.snapshot().await;
+     let healthy = snap.accounts.iter().filter(|a| a.healthy).count();
+     let (acct_state, acct_fix) = if snap.total == 0 {
+-        ("fault", "去「账号」页导入 Cookie / 一键登录")
++        ("fault", "Import a cookie or sign in on the Accounts tab")
+     } else if healthy == 0 {
+-        ("fault", "所有账号冷却中：等待冷却结束，或重新登录刷新凭证")
++        ("fault", "All accounts are cooling down. Wait or sign in again to refresh credentials.")
+     } else {
+         ("ok", "")
+     };
+     checks.push(serde_json::json!({
+-        "id": "accounts", "label": "账号池", "state": acct_state,
+-        "detail": format!("{healthy}/{} 个账号可用", snap.total),
++        "id": "accounts", "label": "Account pool", "state": acct_state,
++        "detail": format!("{healthy}/{} accounts available", snap.total),
+         "fix": acct_fix,
+     }));
+     // 3. 模型注册表
+     let models = st.registry.models().await;
+     checks.push(serde_json::json!({
+-        "id": "models", "label": "模型注册表",
++        "id": "models", "label": "Model registry",
+         "state": if models.is_empty() { "fault" } else { "ok" },
+-        "detail": format!("{} 个模型可用", models.len()),
+-        "fix": if models.is_empty() { "检查上游连通性与代理设置" } else { "" },
++        "detail": format!("{} models available", models.len()),
++        "fix": if models.is_empty() { "Check upstream connectivity and proxy settings" } else { "" },
+     }));
+     // 4. 遥测写入
+     let dropped = st.telemetry.dropped();
+     checks.push(serde_json::json!({
+-        "id": "telemetry", "label": "遥测写入",
++        "id": "telemetry", "label": "Telemetry writes",
+         "state": if dropped > 1000 { "fault" } else { "ok" },
+-        "detail": format!("累计丢弃 {} 条（队列满时）", dropped),
++        "detail": format!("{} events dropped when the queue was full", dropped),
+     }));
+     // 5. 技能库
+     let skills = st.skills.list();
+     let enabled = skills.iter().filter(|s| s.enabled).count();
+     checks.push(serde_json::json!({
+-        "id": "skills", "label": "技能库", "state": "ok",
+-        "detail": format!("{} 条（启用 {}）", skills.len(), enabled),
++        "id": "skills", "label": "Skill library", "state": "ok",
++        "detail": format!("{} skills ({} enabled)", skills.len(), enabled),
+     }));
+     // 6. 日志总线
+     checks.push(serde_json::json!({
+-        "id": "logs", "label": "日志总线", "state": "ok",
+-        "detail": format!("已记录 {} 条", st.logs.count()),
++        "id": "logs", "label": "Log stream", "state": "ok",
++        "detail": format!("{} events recorded", st.logs.count()),
+     }));
+     // 7. 记忆库
+     let mem_stats = st.memory.stats().unwrap_or_else(|_| serde_json::json!({}));
+     checks.push(serde_json::json!({
+-        "id": "memory", "label": "记忆库", "state": "ok",
++        "id": "memory", "label": "Memory library", "state": "ok",
+         "detail": format!(
+-            "{} 条（稳定事实 {} / 纠正 {}）",
++            "{} memories ({} stable facts / {} corrections)",
+             mem_stats.get("total").and_then(|v| v.as_i64()).unwrap_or(0),
+             mem_stats.get("static_count").and_then(|v| v.as_i64()).unwrap_or(0),
+             mem_stats.get("corrections").and_then(|v| v.as_i64()).unwrap_or(0)
+@@ -3498,8 +3498,8 @@ async fn handle_doctor(State(st): State<AppState>, headers: HeaderMap) -> Respon
+     }));
+     // 8. 版本
+     checks.push(serde_json::json!({
+-        "id": "version", "label": "版本", "state": "fact",
+-        "detail": format!("v{}（运行 {} 秒）", env!("CARGO_PKG_VERSION"), st.started.elapsed().as_secs()),
++        "id": "version", "label": "Version", "state": "fact",
++        "detail": format!("v{} (uptime {} seconds)", env!("CARGO_PKG_VERSION"), st.started.elapsed().as_secs()),
+     }));
+ 
+     Json(serde_json::json!({ "ok": true, "checks": checks })).into_response()
+@@ -3635,16 +3635,16 @@ async fn handle_upload(State(st): State<AppState>, headers: HeaderMap, body: axu
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "error": { "message": "多模态上传需要 web Cookie 凭证（先 POST /api/tokens/import 导入）", "type": "invalid_request_error", "code": "multimodal_requires_web_cookie" } })),
++                Json(serde_json::json!({ "error": { "message": "Multimodal uploads require a web cookie (import with POST /api/tokens/import first)", "type": "invalid_request_error", "code": "multimodal_requires_web_cookie" } })),
+             )
+                 .into_response();
+         }
+     };
+     if body.is_empty() {
+-        return bad_req("empty body（请用 --data-binary 发送文件内容）");
++        return bad_req("empty body (use --data-binary to send file content)");
+     }
+     if body.len() > 20 * 1024 * 1024 {
+-        return bad_req("文件过大（上限 20MB）");
++        return bad_req("File too large (20MB limit)");
+     }
+     let filename = headers
+         .get("x-file-name")
+@@ -3690,7 +3690,7 @@ async fn handle_upload(State(st): State<AppState>, headers: HeaderMap, body: axu
+     };
+     match client.upload_with_model(body.to_vec(), &filename, &mime, &model_override).await {
+         Ok(up) => {
+-            st.logs.emit("info", "upload", None, format!("上传 {}（{:.1}KB, {}）→ storageId {}", filename, body.len() as f64 / 1024.0, up.kind, up.storage_id));
++            st.logs.emit("info", "upload", None, format!("Uploaded {} ({:.1}KB, {}) → storageId {}", filename, body.len() as f64 / 1024.0, up.kind, up.storage_id));
+             Json(serde_json::json!({
+                 "id": up.storage_id,
+                 "object": "file",
+@@ -3704,8 +3704,8 @@ async fn handle_upload(State(st): State<AppState>, headers: HeaderMap, body: axu
+                 "chars": up.chars,             // 仅文档有（提取字符数）
+                 "truncated": up.truncated,     // 仅文档有（是否截断）
+                 "usage": {
+-                    "image": "把 storageId 放进 /v1/web/chat 的 images 数组",
+-                    "document": "把 storageId 放进 /v1/web/chat 的 attachments 数组"
++                    "image": "Put storageId in the images array of /v1/web/chat",
++                    "document": "Put storageId in the attachments array of /v1/web/chat"
+                 }
+             }))
+             .into_response()
+@@ -3882,7 +3882,7 @@ async fn handle_account_overview(State(st): State<AppState>, headers: HeaderMap)
+                 Json(serde_json::json!({
+                     "ok": false,
+                     "code": "need_cookie",
+-                    "message": "还没有 web Cookie 凭证。点「一键登录」按向导操作，或粘贴 Cookie 导入。"
++                    "message": "No web cookie yet. Click Sign in and follow the wizard, or paste a cookie to import."
+                 })),
+             )
+                 .into_response();
+@@ -3909,7 +3909,7 @@ async fn handle_account_overview(State(st): State<AppState>, headers: HeaderMap)
+             .err()
+             .map(|e| e.to_string())
+             .or_else(|| quota.as_ref().err().map(|e| e.to_string()))
+-            .unwrap_or_else(|| "上游未返回登录账号（凭证已失效或未登录）".into());
++            .unwrap_or_else(|| "Upstream returned no signed-in account. Credentials have expired or are signed out.".into());
+         // 失败也记一条，便于排查"这个账号什么时候开始不可用"
+         let mut failed = crate::account_meta::CredMeta {
+             cred_id: cid,
+@@ -3928,7 +3928,7 @@ async fn handle_account_overview(State(st): State<AppState>, headers: HeaderMap)
+             "ok": false,
+             "code": "credential_invalid",
+             "credential": cred,
+-            "message": format!("凭证无法访问上游（可能已失效或被风控）：{hint}。请重新登录后导入新凭证。"),
++            "message": format!("Credential cannot access upstream (it may have expired or been restricted): {hint}. Sign in again and import fresh credentials."),
+         }))
+         .into_response();
+     }
+@@ -3945,7 +3945,7 @@ async fn handle_account_overview(State(st): State<AppState>, headers: HeaderMap)
+         tracing::warn!("写入账号信息缓存失败: {e}");
+     }
+     record_history(&st, &meta, true);
+-    st.logs.emit("info", "account", None, "账号全貌已刷新");
++    st.logs.emit("info", "account", None, "Account details refreshed");
+     Json(serde_json::json!({
+         "ok": true,
+         "identity": identity.ok(),
+@@ -3969,7 +3969,7 @@ async fn handle_account_refresh(State(st): State<AppState>, headers: HeaderMap)
+         None => {
+             return (
+                 StatusCode::BAD_REQUEST,
+-                Json(serde_json::json!({ "ok": false, "code": "need_cookie", "message": "未找到 web Cookie 凭证" })),
++                Json(serde_json::json!({ "ok": false, "code": "need_cookie", "message": "No web cookie found" })),
+             )
+                 .into_response();
+         }
+@@ -3981,18 +3981,18 @@ async fn handle_account_refresh(State(st): State<AppState>, headers: HeaderMap)
+     match client.convex_token().await {
+         Ok(v) => {
+             let has_token = v.get("token").and_then(|t| t.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+-            st.logs.emit("info", "account", None, "凭证保活检查通过（已刷新短期 token）");
++            st.logs.emit("info", "account", None, "Credential freshness check passed; short-lived token refreshed");
+             Json(serde_json::json!({
+                 "ok": true,
+                 "valid": has_token,
+                 "credential": cred,
+                 "meta": st.meta.get(&cid),
+-                "message": if has_token { "凭证有效，已刷新短期 token（约 5 分钟有效，网关自动复用）" } else { "端点可达但未返回 token" },
++                "message": if has_token { "Credential valid; short-lived token refreshed (valid for about 5 minutes and reused automatically)" } else { "Endpoint reachable, but no token returned" },
+             }))
+             .into_response()
+         }
+         Err(e) => {
+-            st.logs.emit("warn", "account", None, format!("凭证保活检查失败: {e}"));
++            st.logs.emit("warn", "account", None, format!("Credential freshness check failed: {e}"));
+             // 失效也要落一条，凭证列表能直接看到"这条已失效"
+             let mut failed = crate::account_meta::CredMeta {
+                 cred_id: cid.clone(),
+@@ -4015,7 +4015,7 @@ async fn handle_account_refresh(State(st): State<AppState>, headers: HeaderMap)
+                 "valid": false,
+                 "credential": cred,
+                 "meta": failed,
+-                "message": format!("凭证可能已失效（请重新登录导入）：{e}"),
++                "message": format!("Credential may have expired (sign in and import again): {e}"),
+             }))
+             .into_response()
+         }
+@@ -4196,7 +4196,7 @@ mod tests {
+ 
+     #[test]
+     fn anonymous_session_is_not_authenticated() {
+-        // 上游对无效凭证返回 200 + {}（实测），必须判为未登录，否则假凭证会被当成"有效"
++        // 上游对无效凭证返回 200 + {}（实测），必须判为未登录，否则假凭证会被当成"Valid"
+         let anon = serde_json::json!({});
+         assert!(!session_is_authenticated(&anon));
+         // user 为 null / 空对象同样不算登录
+diff --git a/src/skills/gate.rs b/src/skills/gate.rs
+index 941bc8f..6d92a7b 100644
+--- a/src/skills/gate.rs
++++ b/src/skills/gate.rs
+@@ -1,8 +1,8 @@
+ //! 技能质量门：保存前做程序化校验，返回问题列表（空 vec = 通过）。
+ //!
+ //! 规则：
+-//! - 正文为空 / 超过 500 行
+-//! - description 为空
++//! - Instructions are empty / exceed 500 lines
++//! - Description is empty
+ //! - 疑似提示注入短语（ignore previous instructions / 忽略…指令 / system: 等）
+ //! - 未闭合的 ``` 代码块
+ //! - 疑似密钥（sk-… / Bearer eyJ…）
+@@ -17,7 +17,7 @@ pub const MAX_BODY_LINES: usize = 500;
+ pub fn check(body: &str, description: &str) -> Vec<String> {
+     let mut issues = Vec::new();
+     if description.trim().is_empty() {
+-        issues.push("description 为空".to_string());
++        issues.push("Description is empty".to_string());
+     }
+     issues.extend(check_body(body));
+     issues
+@@ -27,22 +27,22 @@ pub fn check(body: &str, description: &str) -> Vec<String> {
+ pub fn check_body(body: &str) -> Vec<String> {
+     let mut issues = Vec::new();
+     if body.trim().is_empty() {
+-        issues.push("正文为空".to_string());
++        issues.push("Instructions are empty".to_string());
+     }
+     let lines = body.lines().count();
+     if lines > MAX_BODY_LINES {
+-        issues.push(format!("正文超过 {MAX_BODY_LINES} 行（当前 {lines} 行）"));
++        issues.push(format!("Instructions exceed {MAX_BODY_LINES} lines (currently {lines})"));
+     }
+     // 围栏标记出现奇数次 => 有未闭合代码块
+     if !body.matches("```").count().is_multiple_of(2) {
+-        issues.push("代码块 ``` 未闭合".to_string());
++        issues.push("Unclosed ``` code block".to_string());
+     }
+     for (idx, line) in body.lines().enumerate() {
+         if let Some(label) = match_rule(injection_rules(), line) {
+-            issues.push(format!("第 {} 行疑似提示注入：{}", idx + 1, label));
++            issues.push(format!("Possible prompt injection on line {}: {}", idx + 1, label));
+         }
+         if let Some(label) = match_rule(secret_rules(), line) {
+-            issues.push(format!("第 {} 行疑似泄露密钥：{}", idx + 1, label));
++            issues.push(format!("Possible secret exposure on line {}: {}", idx + 1, label));
+         }
+     }
+     issues
+@@ -60,12 +60,12 @@ fn injection_rules() -> &'static Rules {
+                 r"(?i)ignore\s+(all\s+)?previous\s+instructions",
+             ),
+             ("disregard rules", r"(?i)disregard.{0,60}rules"),
+-            ("忽略…指令", r"忽略.{0,20}指令"),
++            ("ignore instructions (Chinese)", r"忽略.{0,20}指令"),
+             (
+-                "system/assistant 角色标记",
++                "system/assistant role marker",
+                 r"(?i)^\s*(system|assistant)\s*:",
+             ),
+-            ("<|im_start|> 标记", r"(?i)<\|im_(start|end)\|>"),
++            ("<|im_start|> marker", r"(?i)<\|im_(start|end)\|>"),
+         ])
+     })
+ }
+@@ -74,7 +74,7 @@ fn secret_rules() -> &'static Rules {
+     static RULES: OnceLock<Vec<(&'static str, Regex)>> = OnceLock::new();
+     RULES.get_or_init(|| {
+         compile(&[
+-            ("sk- 样式密钥", r"(?i)\bsk-[A-Za-z0-9_\-]{8,}"),
++            ("sk-style secret", r"(?i)\bsk-[A-Za-z0-9_\-]{8,}"),
+             ("Bearer JWT", r"(?i)\bbearer\s+eyJ[A-Za-z0-9_\-\.]{8,}"),
+         ])
+     })
+@@ -120,21 +120,21 @@ mod tests {
+             .collect::<Vec<_>>()
+             .join("\n");
+         let issues = check(&body, "d");
+-        assert!(issues.iter().any(|s| s.contains("超过 500 行")));
++        assert!(issues.iter().any(|s| s.contains("exceed 500 lines")));
+     }
+ 
+     #[test]
+     fn detects_empty_description_and_body() {
+         let issues = check("正常正文", "");
+-        assert!(issues.iter().any(|s| s.contains("description 为空")));
++        assert!(issues.iter().any(|s| s.contains("Description is empty")));
+         let issues = check("   ", "有描述");
+-        assert!(issues.iter().any(|s| s.contains("正文为空")));
++        assert!(issues.iter().any(|s| s.contains("Instructions are empty")));
+     }
+ 
+     #[test]
+     fn detects_unclosed_code_fence() {
+         let issues = check("说明\n\n```rust\nfn main() {}", "d");
+-        assert!(issues.iter().any(|s| s.contains("未闭合")));
++        assert!(issues.iter().any(|s| s.contains("Unclosed")));
+     }
+ 
+     #[test]
+diff --git a/src/web.rs b/src/web.rs
+index 555e64a..1a55947 100644
+--- a/src/web.rs
++++ b/src/web.rs
+@@ -8,11 +8,11 @@
+ //! - SSE 实时日志 + 请求详情抽屉 + 系统体检
+ 
+ pub const INDEX_HTML: &str = r##"<!DOCTYPE html>
+-<html lang="zh-CN">
++<html lang="en">
+ <head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+-<title>Freebuff2API 控制台</title>
++<title>Freebuff2API Dashboard</title>
+ <style>
+ :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e; --accent:#2f81f7; --ok:#3fb950; --warn:#d29922; --err:#f85149; }
+ * { box-sizing:border-box; margin:0; padding:0; }
+@@ -21,7 +21,7 @@ header { display:flex; align-items:center; justify-content:space-between; paddin
+ header h1 { font-size:17px; font-weight:600; }
+ header .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:8px; vertical-align:middle; }
+ header .dot.ok { background:var(--ok); } header .dot.err { background:var(--err); }
+-/* 记忆层总开关（toggle switch） */
++
+ .switch { position:relative; display:inline-block; width:42px; height:24px; flex:none; }
+ .switch input { opacity:0; width:0; height:0; }
+ .switch .slider { position:absolute; cursor:pointer; inset:0; background:#2d333b; border-radius:24px; transition:.2s; }
+@@ -88,210 +88,210 @@ details { margin:6px 0; } summary { cursor:pointer; color:var(--muted); font-siz
+ </head>
+ <body>
+ <header>
+-  <h1><span class="dot" id="dot"></span>Freebuff2API 控制台 <span style="color:var(--muted);font-size:12px" id="ver"></span></h1>
++  <h1><span class="dot" id="dot"></span>Freebuff2API Dashboard <span style="color:var(--muted);font-size:12px" id="ver"></span></h1>
+   <div class="hstat" id="hstat"></div>
+-  <input id="api-key-input" type="password" placeholder="API Key（配了 api_keys 才需要）" title="配置了 api_keys 时，面板请求需带此 Key；仅存本机浏览器" style="width:200px;font-size:12px" onchange="setApiKey(this.value)">
++  <input id="api-key-input" type="password" placeholder="API key (if api_keys is configured)" title="Required for dashboard requests when api_keys is configured; stored only in this browser" style="width:200px;font-size:12px" onchange="setApiKey(this.value)">
+ </header>
+ <main>
+   <div id="banner"></div>
+   <div class="cards" id="cards"></div>
+   <div id="cost-line" style="font-size:13px;color:var(--muted);margin:-8px 0 16px 2px"></div>
+   <nav>
+-    <button data-tab="overview" class="active" onclick="showTab('overview')">总览</button>
+-    <button data-tab="account" onclick="showTab('account')">账号</button>
+-    <button data-tab="skills" onclick="showTab('skills')">技能</button>
+-    <button data-tab="memory" onclick="showTab('memory')">记忆</button>
+-    <button data-tab="logs" onclick="showTab('logs')">实时日志</button>
+-    <button data-tab="teach" onclick="showTab('teach')">原理</button>
+-    <button data-tab="doctor" onclick="showTab('doctor')">系统体检</button>
+-    <button data-tab="guide" onclick="showTab('guide')">接入指南</button>
++    <button data-tab="overview" class="active" onclick="showTab('overview')">Overview</button>
++    <button data-tab="account" onclick="showTab('account')">Accounts</button>
++    <button data-tab="skills" onclick="showTab('skills')">Skills</button>
++    <button data-tab="memory" onclick="showTab('memory')">Memory</button>
++    <button data-tab="logs" onclick="showTab('logs')">Live logs</button>
++    <button data-tab="teach" onclick="showTab('teach')">How it works</button>
++    <button data-tab="doctor" onclick="showTab('doctor')">Diagnostics</button>
++    <button data-tab="guide" onclick="showTab('guide')">Client setup</button>
+   </nav>
+ 
+   <section id="tab-overview">
+-    <!-- 立刻开始请求：地址 + Key + 一键复制（回答"导入凭证之后呢？"） -->
++
+     <div class="panel" id="connect-panel">
+       <div class="row" style="margin-bottom:10px">
+-        <h2 style="margin:0">🚀 立刻开始请求</h2>
++        <h2 style="margin:0">🚀 Start sending requests</h2>
+         <span style="flex:1"></span>
+         <span id="connect-ready" style="font-size:12px;color:var(--muted)"></span>
+       </div>
+       <div class="grid" style="gap:16px">
+         <div>
+-          <label>接口地址（Base URL）</label>
+-          <div class="row"><input id="c-base" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-base').value)">复制</button></div>
+-          <label style="margin-top:8px">OpenAI 协议地址（Cursor / LobeChat / SDK）</label>
+-          <div class="row"><input id="c-openai" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-openai').value)">复制</button></div>
+-          <label style="margin-top:8px">Anthropic 协议地址（Claude Code）</label>
+-          <div class="row"><input id="c-anthropic" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-anthropic').value)">复制</button></div>
++          <label>Base URL</label>
++          <div class="row"><input id="c-base" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-base').value)">Copy</button></div>
++          <label style="margin-top:8px">OpenAI API (Cursor / LobeChat / SDK)</label>
++          <div class="row"><input id="c-openai" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-openai').value)">Copy</button></div>
++          <label style="margin-top:8px">Anthropic API (Claude Code)</label>
++          <div class="row"><input id="c-anthropic" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-anthropic').value)">Copy</button></div>
+         </div>
+         <div>
+           <label>API Key</label>
+-          <div class="row"><input id="c-key" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-key').value)">复制</button></div>
++          <div class="row"><input id="c-key" readonly style="flex:1"><button class="ghost sm" onclick="copyText(document.getElementById('c-key').value)">Copy</button></div>
+           <div class="row" style="margin-top:8px">
+-            <button class="sm" onclick="genApiKey()">生成并启用 Key</button>
+-            <button class="ghost sm" onclick="clearApiKey()">清除 Key</button>
++            <button class="sm" onclick="genApiKey()">Generate and enable key</button>
++            <button class="ghost sm" onclick="clearApiKey()">Clear key</button>
+           </div>
+           <div id="c-key-hint" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+           <div id="c-model-hint" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+         </div>
+       </div>
+-      <div style="margin-top:12px;font-size:13px;color:var(--muted)">把上面两项填进客户端就能用了 —— 现成配置片段见
+-        <a href="#" onclick="showTab('guide');return false" style="color:var(--accent)">接入指南</a>。</div>
++      <div style="margin-top:12px;font-size:13px;color:var(--muted)">Enter the address and API key in your client to get started. Ready-to-use examples are in
++        <a href="#" onclick="showTab('guide');return false" style="color:var(--accent)">Client setup</a>.</div>
+     </div>
+ 
+     <div class="grid">
+-      <div class="panel"><h2>账号健康度</h2><div id="acc-wrap"></div></div>
+-      <div class="panel"><h2>近 7 天用量</h2><div id="daily-wrap"></div></div>
++      <div class="panel"><h2>Account health</h2><div id="acc-wrap"></div></div>
++      <div class="panel"><h2>Usage over the last 7 days</h2><div id="daily-wrap"></div></div>
+     </div>
+-    <div class="panel"><h2>最近请求 <span style="font-weight:400">（点击行查看详情）</span></h2><div id="reqs-wrap"></div></div>
+-    <div class="panel"><h2>可用模型（<span id="model-count">…</span>）</h2><div id="models-wrap"></div></div>
+-    <div class="panel" id="balance-panel" style="display:none"><h2>账号积分</h2><div id="balance-wrap"></div></div>
++    <div class="panel"><h2>Recent requests <span style="font-weight:400">(click a row for details)</span></h2><div id="reqs-wrap"></div></div>
++    <div class="panel"><h2>Available models (<span id="model-count">…</span>)</h2><div id="models-wrap"></div></div>
++    <div class="panel" id="balance-panel" style="display:none"><h2>Account credits</h2><div id="balance-wrap"></div></div>
+   </section>
+ 
+   <section id="tab-account" style="display:none">
+-    <!-- 账号全貌（身份 / 用量 / 套餐 / 积分） -->
++
+     <div class="panel">
+       <div class="row" style="margin-bottom:10px">
+-        <h2 style="margin:0">账号全貌</h2>
++        <h2 style="margin:0">Account details</h2>
+         <span style="flex:1"></span>
+-        <button class="ghost sm" onclick="refreshAccountOverview()">刷新</button>
+-        <button class="ghost sm" onclick="refreshCredential()">🔄 保活检查</button>
++        <button class="ghost sm" onclick="refreshAccountOverview()">Refresh</button>
++        <button class="ghost sm" onclick="refreshCredential()">🔄 Check freshness</button>
+       </div>
+-      <div id="overview-wrap"><div class="empty">点「刷新」拉取账号信息（身份 / 连续使用天数 / token 消耗 / 套餐 / 今日剩余积分）</div></div>
++      <div id="overview-wrap"><div class="empty">Click Refresh to load identity, usage streak, tokens, plan, and remaining daily credits.</div></div>
+     </div>
+ 
+-    <!-- 添加账号（一键登录向导 / 粘贴导入） -->
++
+     <div class="panel">
+-      <h2>添加账号</h2>
++      <h2>Add account</h2>
+       <div class="row" style="margin-bottom:10px">
+-        <button onclick="oneClickLogin()">🔑 一键登录</button>
+-        <span id="ext-status" class="badge dim">检测扩展中…</span>
+-        <button class="ghost sm" onclick="downloadExtension()">⬇ 下载扩展</button>
+-        <button class="ghost sm" onclick="pingExtension(true)">重新检测</button>
++        <button onclick="oneClickLogin()">🔑 Sign in</button>
++        <span id="ext-status" class="badge dim">Checking for extension…</span>
++        <button class="ghost sm" onclick="downloadExtension()">⬇ Download extension</button>
++        <button class="ghost sm" onclick="pingExtension(true)">Check again</button>
+       </div>
+ 
+       <div id="login-wizard" style="display:none;border:1px solid var(--accent);border-radius:8px;padding:14px;margin-bottom:12px;background:linear-gradient(135deg,#132a4a,#161b22)">
+-        <div class="row" style="margin-bottom:8px"><b>浏览器版一键登录</b><span style="flex:1"></span><button class="ghost sm" onclick="document.getElementById('login-wizard').style.display='none'">收起</button></div>
++        <div class="row" style="margin-bottom:8px"><b>Browser sign-in options</b><span style="flex:1"></span><button class="ghost sm" onclick="document.getElementById('login-wizard').style.display='none'">Collapse</button></div>
+         <div id="wizard-embed" style="font-size:13px;margin-bottom:10px;padding:8px;background:#0d1117;border-radius:6px">
+-          <b>方案 A（最推荐 · 零安装零复制）：内嵌登录窗口</b> <span class="badge ok">登录完即完事</span>
+-          <div style="margin:6px 0;color:var(--muted);line-height:1.9">点下面的按钮会弹出一个内置浏览器窗口（系统自带的 WebView2 组件）→ 在窗口里正常完成 GitHub 登录 → 网关<b>自动</b>抓取凭证入库并关闭窗口。全程无需装扩展、无需复制任何东西。</div>
+-          <button onclick="openEmbedLogin()">🪟 弹出内嵌登录窗口</button>
++          <b>Option A: Embedded login window</b> <span class="badge ok">Sign in to finish</span>
++          <div style="margin:6px 0;color:var(--muted);line-height:1.9">Open the embedded browser window (requires Windows WebView2), then complete GitHub sign-in. The gateway <b>automatically</b> captures your credentials and closes the window. No extension or copying is needed. On macOS, use Login New Account from the tray menu.</div>
++          <button onclick="openEmbedLogin()">🪟 Open embedded login window</button>
+           <span id="embed-status" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+         </div>
+         <div id="wizard-clip" style="font-size:13px;margin-bottom:10px;padding:8px;background:#0d1117;border-radius:6px">
+-          <b>方案 B（推荐 · 无需安装）：剪贴板自动检测</b> <span class="badge ok">约 30 秒</span>
+-          <div style="margin:6px 0;color:var(--muted);line-height:1.9">去 freebuff.com 登录 → 按 <b>F12</b> → <b>Network</b> → 点任意请求 → 在 <b>Headers</b> 里找到 <code>Cookie:</code> 开头那一行并整行复制（Ctrl+C）→ 回来点下面这个按钮，剩下的自动完成。</div>
+-          <button onclick="importFromClipboard()">📋 自动检测剪贴板</button>
++          <b>Option B: Import from clipboard (no installation)</b> <span class="badge ok">About 30 seconds</span>
++          <div style="margin:6px 0;color:var(--muted);line-height:1.9">Sign in at freebuff.com, press <b>F12</b> → <b>Network</b> → select a request → <b>Headers</b> → find <code>Cookie:</code>  and copy the entire header line (Cmd+C on Mac, Ctrl+C on Windows). Return here and click the button below to import.</div>
++          <button onclick="importFromClipboard()">📋 Import from clipboard</button>
+           <span id="clip-status" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
+         </div>
+         <div id="wizard-ext" style="font-size:13px;margin-bottom:10px;padding:8px;background:#0d1117;border-radius:6px">
+-          <b>方案 C（全自动 · 装一次以后都不用管）：Chrome / Edge 扩展</b> <span class="badge dim">首次约 2 分钟</span>
++          <b>Option C: Chrome / Edge extension (install once)</b> <span class="badge dim">About 2 minutes to set up</span>
+           <ol style="margin:6px 0 0 20px;color:var(--muted);line-height:1.9">
+-            <li>点上方「⬇ 下载扩展」得到 zip → 解压到任意目录（也可直接用项目里的 <code>browser-extension/</code> 目录）</li>
+-            <li>打开 <code>chrome://extensions</code>（Edge 为 <code>edge://extensions</code>）→ 打开「开发者模式」→「加载已解压的扩展程序」→ 选中刚解压的目录</li>
+-            <li>回到本页点「重新检测」→ 状态变成 <span class="badge ok">已就绪</span> 后，再点「一键登录」即可<b>全自动</b>：自动打开 freebuff.com → 你完成 GitHub 登录 → 凭证自动入库（含 HttpOnly Cookie，网页 JS 读不到，只有扩展能读）</li>
++            <li>Click Download extension and extract the ZIP (or use the project’s <code>browser-extension/</code>  directory)</li>
++            <li>Open <code>chrome://extensions</code> (or in Edge, <code>edge://extensions</code>). Enable Developer mode, choose Load unpacked, and select the extracted directory.</li>
++            <li>Return here and click Check again. When the status is <span class="badge ok">Ready</span>  click Sign in for <b>automatic import</b>: freebuff.com opens, you sign in with GitHub, and credentials are imported (including HttpOnly cookies, which page scripts cannot read).</li>
+           </ol>
+         </div>
+-        <b style="font-size:13px">手动粘贴（兜底）：<span style="color:var(--muted);font-weight:400">支持 Cookie 串 / cURL / HAR</span></b> <span class="badge dim">约 1 分钟</span>
++        <b style="font-size:13px">Manual import: <span style="color:var(--muted);font-weight:400">Cookie header / cURL / HAR supported</span></b> <span class="badge dim">About 1 minute</span>
+         <ol style="margin:6px 0 10px 20px;font-size:13px;color:var(--muted);line-height:2">
+-          <li><button class="ghost sm" onclick="window.open('https://freebuff.com/','_blank','noopener')">① 打开 freebuff.com 并登录</button>（GitHub 登录即可）</li>
+-          <li>按 <b>F12</b> → <b>Network</b> → 刷新 → 点任意请求 → <b>Headers</b> 里找 <code>Cookie:</code> 整行复制（或 Application → Cookies 里复制 <code>__Secure-next-auth.session-token</code> 的值）</li>
+-          <li>回到本页面粘贴到下方输入框 → 点「导入」（导入后会自动验证凭证是否有效）</li>
++          <li><button class="ghost sm" onclick="window.open('https://freebuff.com/','_blank','noopener')">① Open freebuff.com and sign in</button> (using GitHub)</li>
++          <li>Press <b>F12</b> → <b>Network</b> → reload the page → select a request → <b>Headers</b> → find <code>Cookie:</code> and copy the full line (or in Application → Cookies, copy the value of <code>__Secure-next-auth.session-token</code>)</li>
++          <li>Paste into the field below and click Import. The imported credential will be verified automatically.</li>
+         </ol>
+-        <div style="font-size:12px;color:var(--muted)">💡 为什么网页不能全自动？上游登录 Cookie 标记为 HttpOnly（浏览器禁止网页脚本读取）——方案 B 的"复制"动作由你亲手完成（Ctrl+C 什么都能复制，HttpOnly 也拦不住剪贴板），网页脚本只负责读剪贴板和导入；扩展可以合法直接读 Cookie；桌面版由 Electron 主进程读取，因此桌面版是托盘一键全自动。</div>
++        <div style="font-size:12px;color:var(--muted)">💡 Why is a manual step needed in a browser? HttpOnly login cookies cannot be read by page scripts. With option B, you copy the cookie yourself; this page reads the clipboard and imports it. An extension can read cookies with permission. The desktop app uses its Electron main process, so signing in from the tray menu imports them automatically.</div>
+       </div>
+ 
+-      <textarea id="import-text" placeholder="粘贴以下任意一种：
+-1) 浏览器 Cookie 串（含 __Secure-next-auth.session-token=...）
+-2) 从 DevTools 复制的 cURL (bash) 命令
+-3) HAR 导出文件的 JSON 内容
+-提示：也可以在 DevTools 里复制 Cookie 整行后，用向导里的「📋 自动检测剪贴板」一步完成"></textarea>
++      <textarea id="import-text" placeholder="Paste any of the following:
++1) Browser Cookie header (including __Secure-next-auth.session-token=...)
++2) cURL (bash) command copied from DevTools
++3) JSON content from a HAR export
++Tip: Copy the full Cookie header in DevTools, then use Import from clipboard in the wizard."></textarea>
+       <div class="row" style="margin-top:10px">
+-        <button onclick="doImport()">导入</button>
++        <button onclick="doImport()">Import</button>
+         <span id="import-result" style="font-size:13px;color:var(--muted)"></span>
+       </div>
+       <div id="import-verify" style="display:none;margin-top:10px;font-size:13px"></div>
+-      <details style="margin-top:12px"><summary>怎么获取 Cookie？（点击展开详细图文说明）</summary>
++      <details style="margin-top:12px"><summary>How do I get a cookie? (expand for instructions)</summary>
+         <ol style="margin:10px 0 0 20px;font-size:13px;color:var(--muted);line-height:1.9">
+-          <li>浏览器登录 freebuff.com</li>
+-          <li>按 F12 打开开发者工具 → Network 标签</li>
+-          <li>刷新页面，点任意请求 → Headers → 找到 <code>Cookie:</code> 开头那一整行</li>
+-          <li>整行复制，粘贴到上面的框里，点「导入」</li>
+-          <li>也可以在 Application → Cookies → https://freebuff.com 里逐项复制（需要包含 <code>__Secure-next-auth.session-token</code>）</li>
++          <li>Sign in at freebuff.com in your browser</li>
++          <li>Press F12 to open DevTools → Network tab</li>
++          <li>Reload the page, select a request → Headers → find <code>Cookie:</code> and copy the entire line</li>
++          <li>Copy the full line, paste it above, and click Import.</li>
++          <li>You can also copy cookies individually from Application → Cookies → https://freebuff.com (include <code>__Secure-next-auth.session-token</code>)</li>
+         </ol>
+       </details>
+     </div>
+ 
+-    <!-- 凭证列表 -->
++
+     <div class="panel">
+-      <h2>已入库凭证 <span id="cred-count" style="font-weight:400;color:var(--muted);font-size:12px"></span></h2>
++      <h2>Saved credentials <span id="cred-count" style="font-weight:400;color:var(--muted);font-size:12px"></span></h2>
+       <div id="tokens-wrap"></div>
+     </div>
+ 
+-    <!-- 使用记录（每个账号的额度/消耗快照，可查历史） -->
++
+     <div class="panel">
+       <div class="row" style="margin-bottom:10px">
+-        <h2 style="margin:0">使用记录</h2>
++        <h2 style="margin:0">Usage history</h2>
+         <span style="flex:1"></span>
+-        <select id="hist-cred" style="width:auto" onchange="loadHistory()"><option value="">全部账号</option></select>
+-        <button class="ghost sm" onclick="loadHistory()">刷新</button>
++        <select id="hist-cred" style="width:auto" onchange="loadHistory()"><option value="">All accounts</option></select>
++        <button class="ghost sm" onclick="loadHistory()">Refresh</button>
+       </div>
+-      <div id="hist-wrap"><div class="empty">每次「刷新账号全貌」或「检查」都会记录一条 —— 点「刷新」查看</div></div>
++      <div id="hist-wrap"><div class="empty">Refreshing account details or checking a credential saves a snapshot. Click Refresh to view history.</div></div>
+     </div>
+   </section>
+ 
+   <section id="tab-skills" style="display:none">
+     <div class="panel">
+-      <h2>技能库 <span style="font-weight:400;color:var(--muted);font-size:12px">（启用后注入对话 system 前缀；roster 模式只注入名称与描述）</span></h2>
++      <h2>Skill library <span style="font-weight:400;color:var(--muted);font-size:12px">(enabled skills are added to the system prefix; roster mode includes names and descriptions only)</span></h2>
+       <div class="row" style="margin-bottom:10px">
+-        <button onclick="newSkill()">＋ 新建技能</button>
++        <button onclick="newSkill()">+ New skill</button>
+         <span id="roster-info" style="font-size:12px;color:var(--muted)"></span>
+       </div>
+       <div id="skills-wrap"></div>
+     </div>
+     <div class="panel" id="skill-editor" style="display:none">
+-      <h2 id="skill-editor-title">编辑技能</h2>
+-      <label>名称</label><input id="sk-name" placeholder="例如：周报助手">
+-      <label>描述（写给 AI 的触发说明：什么时候用这个技能）</label><input id="sk-desc" placeholder="Use when the user wants to write a weekly report...">
+-      <label>指令正文（Markdown）</label><textarea id="sk-body" style="min-height:200px" placeholder="技能的完整指令内容…"></textarea>
++      <h2 id="skill-editor-title">Edit skill</h2>
++      <label>Name</label><input id="sk-name" placeholder="For example: Weekly report assistant">
++      <label>Description (tell the AI when to use this skill)</label><input id="sk-desc" placeholder="Use when the user wants to write a weekly report...">
++      <label>Instructions (Markdown)</label><textarea id="sk-body" style="min-height:200px" placeholder="Full skill instructions…"></textarea>
+       <div class="row" style="margin-top:10px">
+-        <button onclick="saveSkill()">保存</button>
+-        <button class="ghost" onclick="document.getElementById('skill-editor').style.display='none'">取消</button>
++        <button onclick="saveSkill()">Save</button>
++        <button class="ghost" onclick="document.getElementById('skill-editor').style.display='none'">Cancel</button>
+         <span id="skill-save-result" style="font-size:13px;color:var(--muted)"></span>
+       </div>
+-      <details style="margin-top:10px"><summary>质量门检查（保存前会提示问题）</summary><div id="gate-result" style="font-size:13px;color:var(--muted);margin-top:6px"></div></details>
++      <details style="margin-top:10px"><summary>Quality check (issues are shown before saving)</summary><div id="gate-result" style="font-size:13px;color:var(--muted);margin-top:6px"></div></details>
+     </div>
+   </section>
+ 
+   <section id="tab-memory" style="display:none">
+     <div class="panel">
+-      <h2>记忆库 <span style="font-weight:400;color:var(--muted);font-size:12px">（AI 从这里学习你的偏好与纠正；零 LLM 规则记录，纯本地）</span></h2>
++      <h2>Memory library <span style="font-weight:400;color:var(--muted);font-size:12px">(local, rule-based records of your preferences and corrections; no LLM calls)</span></h2>
+       <div id="mem-toggle-row" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:#161b22">
+         <div style="flex:1">
+-          <div style="font-size:14px;font-weight:600">记忆层 <span id="mem-toggle-state" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
+-          <div style="font-size:12px;color:var(--muted);margin-top:2px">开启后自动记录常用模型/推理档位/你的纠正，并在相关对话时注入（默认关闭，适合不需要记忆的用户）</div>
++          <div style="font-size:14px;font-weight:600">Memory <span id="mem-toggle-state" style="font-size:12px;font-weight:400;color:var(--muted)"></span></div>
++          <div style="font-size:12px;color:var(--muted);margin-top:2px">When enabled, records frequently used models, reasoning levels, and your corrections for use in relevant conversations. Disabled by default.</div>
+         </div>
+-        <label class="switch" title="记忆层总开关（写回 config.json，立即生效，无需重启）">
++        <label class="switch" title="Enable memory (saved to the gateway configuration; takes effect immediately)">
+           <input type="checkbox" id="mem-toggle" onchange="toggleMemoryEnabled()">
+           <span class="slider"></span>
+         </label>
+       </div>
+       <div id="mem-stats" style="margin-bottom:10px;font-size:13px;color:var(--muted)"></div>
+       <div class="row" style="margin-bottom:10px">
+-        <button onclick="newMemory()">＋ 手动添加</button>
+-        <span style="font-size:12px;color:var(--muted)">自动记录：常用模型 / 推理档位降级 / 你的纠正（"记住…"、"别再…"、"always/never"）</span>
++        <button onclick="newMemory()">+ Add manually</button>
++        <span style="font-size:12px;color:var(--muted)">Automatically records frequent models, reasoning downgrades, and corrections such as “remember”, “always”, or “never”.</span>
+       </div>
+       <div id="mem-editor" style="display:none;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px">
+-        <label>类型</label>
++        <label>Type</label>
+         <select id="mem-kind">
+-          <option value="preference">偏好</option><option value="correction">纠正</option>
+-          <option value="habit">习惯</option><option value="project">项目</option><option value="feedback">反馈</option>
++          <option value="preference">Preference</option><option value="correction">Correction</option>
++          <option value="habit">Habit</option><option value="project">Project</option><option value="feedback">Feedback</option>
+         </select>
+-        <label>标题</label><input id="mem-title" placeholder="例如：偏好中文回答 / 常用模型 glm-5.3-flash">
+-        <label>内容</label><textarea id="mem-content" style="min-height:80px" placeholder="具体内容（相关对话时会注入 system 前缀，低权威）"></textarea>
++        <label>Title</label><input id="mem-title" placeholder="For example: Prefer English replies / Favorite model glm-5.3-flash">
++        <label>Content</label><textarea id="mem-content" style="min-height:80px" placeholder="Details (added as low-priority context to relevant conversations)"></textarea>
+         <div class="row" style="margin-top:10px">
+-          <button onclick="saveMemory()">保存</button>
+-          <button class="ghost" onclick="document.getElementById('mem-editor').style.display='none'">取消</button>
++          <button onclick="saveMemory()">Save</button>
++          <button class="ghost" onclick="document.getElementById('mem-editor').style.display='none'">Cancel</button>
+           <span id="mem-save-result" style="font-size:13px;color:var(--muted)"></span>
+         </div>
+       </div>
+@@ -301,113 +301,113 @@ details { margin:6px 0; } summary { cursor:pointer; color:var(--muted); font-siz
+ 
+   <section id="tab-teach" style="display:none">
+     <div class="panel">
+-      <h2>原理速览 <span style="font-weight:400;color:var(--muted);font-size:12px">（这个网关背后发生了什么）</span></h2>
+-      <details open><summary><b>① 请求进来之后</b></summary>
++      <h2>How it works <span style="font-weight:400;color:var(--muted);font-size:12px">(what happens inside the gateway)</span></h2>
++      <details open><summary><b>① When a request arrives</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        客户端（Claude Code / Cursor）把 OpenAI 或 Claude 格式的请求发到本地 <code>47821</code> 端口。
+-        网关先解析模型名 → 从账号池挑健康账号（评分 + 熔断状态）→ 确保该账号在上游有活跃会话
+-        → 把请求改写为上游格式（注入 run 元数据、按模型校正思考档位、拼上提示词/技能/记忆）
+-        → 转发上游，再把响应（流式）实时转回客户端格式。</p></details>
+-      <details><summary><b>② 多账号是怎么"轮询"的</b></summary>
++        Clients such as Claude Code or Cursor send OpenAI- or Claude-format requests to local port <code>47821</code>.
++        The gateway resolves the model, selects a healthy account using its score and circuit state, and ensures it has an active upstream session.
++        It converts the request to the upstream format, adds run metadata, adjusts reasoning for the model, and includes prompts, skills, and memory.
++        It forwards the request and converts the streaming response back to the client format.</p></details>
++      <details><summary><b>② How account rotation works</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        每个账号有独立的健康分与熔断器（Closed / Open / HalfOpen 三态）：连续失败 4 次自动断开，
+-        冷却随断开次数指数增长（封顶 10 分钟）；冷却结束进入半开状态放行探测，连续成功 2 次恢复。
+-        请求失败会自动换号重试（最多 3 次）——但只在"尚未向客户端写出任何字节"之前重试，
+-        绝不会把半截响应写给你。</p></details>
+-      <details><summary><b>③ 提示词 / 技能 / 记忆是怎么注入的</b></summary>
++        Each account has a health score and a circuit breaker (Closed / Open / HalfOpen). Four consecutive failures open the circuit.
++        Cooldown grows exponentially, up to 10 minutes. After cooldown, probe requests run in HalfOpen state; two consecutive successes restore the account.
++        Failed requests can retry on another account up to three times, only before any bytes have been sent to the client.
++        This prevents retries from mixing partial responses.</p></details>
++      <details><summary><b>③ How prompts, skills, and memory are included</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        注入顺序：基础提示词 → 启用的提示词 → 技能 roster（名称+描述）→ 记忆块（低权威），
+-        拼成一条 system 消息放最前面。技能与记忆有严格预算（默认 2000 / 512 token），超出整条丢弃，
+-        避免"越装越贵"。记忆按你当前的问题检索（本地 trigram 全文索引，支持中文）。</p></details>
+-      <details><summary><b>④ 黑匣子：为什么这次慢 / 为什么失败</b></summary>
++        Order: base prompt → enabled prompts → skill roster (names and descriptions) → memory (low-priority context).
++        These become the initial system message. Skills and memory have strict budgets (2,000 and 512 tokens by default); entries that exceed the budget are omitted.
++        Memory is retrieved for the current question using a local trigram full-text index with multilingual support.</p></details>
++      <details><summary><b>④ Investigating slow or failed requests</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        每次请求都记录：路由决策（请求模型→实际模型→账号）、上游状态码、首字节时间、总耗时、token 用量、
+-        错误类型与片段。在「总览 → 最近请求」点任意一行看细节与人话解释；「实时日志」页实时推送
+-        正在发生的事（断线自动补发）。</p></details>
+-      <details><summary><b>⑤ 免费额度与广告保活</b></summary>
++        Each request records routing (requested model → actual model → account), upstream status, time to first byte, duration, token usage,
++        and error details. Click a row under Overview → Recent requests for details and an explanation. Live logs stream
++        events as they happen, with replay after reconnection.</p></details>
++      <details><summary><b>⑤ Free quota and ad refresh</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        上游免费层通过"会话 + 广告刷新"维持额度：网关每 45 秒心跳，会话剩余不足时触发广告刷新延长。
+-        出现 <code>waiting_room_queued</code> 表示上游在排队——不是网关故障，稍等重试或多加账号提升并发。</p></details>
+-      <details><summary><b>⑥ 上游会话自动清理</b></summary>
++        The upstream free tier maintains quota through sessions and ad refreshes. The gateway sends a heartbeat every 45 seconds and refreshes ads when a session needs extending.
++        A <code>waiting_room_queued</code> response means the upstream service has queued the request. Retry later or add accounts for more concurrency.</p></details>
++      <details><summary><b>⑥ Automatic upstream session cleanup</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        每次对话在上游都会生成一个 thread。网关记录自己创建的 thread，并<b>每小时</b>清理超过
+-        <b>24 小时</b>的旧会话（<code class="ok">thread_cleanup_interval_sec</code> /
+-        <code class="ok">thread_max_age_hours</code> 可调，间隔设 0 关闭）——避免反代长期堆积给上游制造压力。
+-        也可在「原理」页对应的 API 手动预演：<code>POST /api/threads/cleanup {"dry_run":true}</code>。</p></details>
+-      <details><summary><b>⑦ 数据都存在哪</b></summary>
++        Each conversation creates an upstream thread. The gateway tracks its threads and runs cleanup <b>every hour</b> for threads older than
++        <b>24 hours</b> (configure <code class="ok">thread_cleanup_interval_sec</code> /
++        <code class="ok">thread_max_age_hours</code>; set the interval to 0 to disable cleanup). This reduces accumulated upstream threads.
++        You can preview cleanup through the API: <code>POST /api/threads/cleanup {"dry_run":true}</code>.</p></details>
++      <details><summary><b>⑦ Where data is stored</b></summary>
+         <p style="font-size:13px;color:var(--muted);line-height:1.9;margin-top:6px">
+-        全部本地：<code>data/freebuff2api.sqlite</code>（用量）、<code>data/telemetry.sqlite</code>（请求详情）、
+-        <code>data/memory.sqlite</code>（记忆）、<code>data/skills/</code>（技能 Markdown，真相源）、
+-        <code>data/tokens.json</code>（凭证）。备份或整体删除即可重置。</p></details>
++        Everything is local: <code>data/freebuff2api.sqlite</code> (usage), <code>data/telemetry.sqlite</code> (request details),
++        <code>data/memory.sqlite</code> (memory), <code>data/skills/</code> (skill Markdown source files),
++        <code>data/tokens.json</code> (credentials). Back up these files or delete them to reset.</p></details>
+     </div>
+   </section>
+ 
+   <section id="tab-logs" style="display:none">
+     <div class="panel">
+       <div class="row" style="margin-bottom:10px">
+-        <h2 style="margin:0">实时日志</h2>
++        <h2 style="margin:0">Live logs</h2>
+         <span style="flex:1"></span>
+         <select id="log-filter" style="width:auto" onchange="renderLogs()">
+-          <option value="">全部级别</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option>
++          <option value="">All levels</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option>
+         </select>
+-        <button class="ghost sm" onclick="clearLogs()">清空显示</button>
++        <button class="ghost sm" onclick="clearLogs()">Clear display</button>
+       </div>
+-      <div class="logs" id="logbox"><div class="empty">等待日志…（发起一次对话即可看到请求链路）</div></div>
++      <div class="logs" id="logbox"><div class="empty">Waiting for logs… Start a conversation to see request activity.</div></div>
+     </div>
+   </section>
+ 
+   <section id="tab-doctor" style="display:none">
+     <div class="panel">
+-      <h2>系统体检 <span style="font-weight:400;color:var(--muted);font-size:12px">（检查结果只是信号，不是判决；"未检查"就是未检查）</span></h2>
+-      <button class="ghost sm" onclick="refreshDoctor()">重新检查</button>
+-      <div id="doctor-wrap" style="margin-top:10px"><div class="empty">点击「重新检查」开始</div></div>
++      <h2>Diagnostics <span style="font-weight:400;color:var(--muted);font-size:12px">(results are diagnostic signals; unchecked items have not been tested)</span></h2>
++      <button class="ghost sm" onclick="refreshDoctor()">Run checks</button>
++      <div id="doctor-wrap" style="margin-top:10px"><div class="empty">Click Run checks to begin</div></div>
+     </div>
+   </section>
+ 
+   <section id="tab-guide" style="display:none">
+     <div class="panel">
+-      <h2>把这个网关接入你的 AI 客户端</h2>
++      <h2>Connect this gateway to your AI client</h2>
+       <div style="background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:12px;margin:10px 0 16px;font-size:13px;line-height:2">
+-        <b>三步走：</b>
+-        ① 在「账号」页导入凭证（或一键登录）→
+-        ② 确认上方状态灯为绿色（网关运行中）→
+-        ③ 按下面任意一种方式配置你的客户端即可开始对话。
++        <b>Three steps:</b>
++        ① Import credentials or sign in on the Accounts tab →
++        ② Check that the status light is green (gateway running) →
++        ③ Configure your client using an example below and start a conversation.
+       </div>
+-      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">网关地址：<code id="guide-base">http://127.0.0.1:47821</code>（OpenAI 协议加 <code>/v1</code> 后缀；Anthropic 协议不加）</p>
+-      <p style="font-size:13px;color:var(--muted);margin-bottom:10px"><b>API Key 填什么？</b> <span id="guide-key-hint">config.json 未配置 api_keys 时，任意字符串即可（如 <code>sk-local</code>）</span></p>
++      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Gateway address: <code id="guide-base">http://127.0.0.1:47821</code> (add <code>/v1</code> for OpenAI; omit it for Anthropic)</p>
++      <p style="font-size:13px;color:var(--muted);margin-bottom:10px"><b>Which API key should I use?</b> <span id="guide-key-hint">If api_keys is not configured, use any nonempty string (such as <code>sk-local</code>)</span></p>
+ 
+-      <h2 style="margin-top:16px">Claude Code（Anthropic 协议）</h2>
+-      <pre id="g-claude"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-claude').textContent)">复制</button>
++      <h2 style="margin-top:16px">Claude Code (Anthropic API)</h2>
++      <pre id="g-claude"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-claude').textContent)">Copy</button>
+ 
+-      <h2 style="margin-top:16px">Cursor / Continue / 通用 OpenAI 客户端</h2>
+-      <pre id="g-openai"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-openai').textContent)">复制</button>
++      <h2 style="margin-top:16px">Cursor / Continue / OpenAI-compatible clients</h2>
++      <pre id="g-openai"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-openai').textContent)">Copy</button>
+ 
+       <h2 style="margin-top:16px">OpenAI SDK (Python)</h2>
+-      <pre id="g-py"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-py').textContent)">复制</button>
++      <pre id="g-py"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-py').textContent)">Copy</button>
+ 
+       <h2 style="margin-top:16px">OpenAI SDK (Node.js)</h2>
+-      <pre id="g-node"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-node').textContent)">复制</button>
++      <pre id="g-node"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-node').textContent)">Copy</button>
+ 
+-      <h2 style="margin-top:16px">curl 快速验证</h2>
+-      <pre id="g-curl"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-curl').textContent)">复制</button>
++      <h2 style="margin-top:16px">Quick check with curl</h2>
++      <pre id="g-curl"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-curl').textContent)">Copy</button>
+ 
+       <h2 style="margin-top:16px">LobeChat / NextChat / Cherry Studio</h2>
+-      <pre id="g-lobe"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-lobe').textContent)">复制</button>
++      <pre id="g-lobe"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-lobe').textContent)">Copy</button>
+     </div>
+   </section>
+ </main>
+ 
+-<div id="drawer"><div class="row"><h3 id="dr-title">请求详情</h3><span style="flex:1"></span><button class="ghost sm" onclick="closeDrawer()">关闭</button></div><div id="dr-body"></div></div>
++<div id="drawer"><div class="row"><h3 id="dr-title">Request details</h3><span style="flex:1"></span><button class="ghost sm" onclick="closeDrawer()">Close</button></div><div id="dr-body"></div></div>
+ <div id="toast"></div>
+ <script>
+-// ---------- 基础工具 ----------
++
+ const $ = (id) => document.getElementById(id);
+-// 可选 API Key（配置了 api_keys 时，面板请求需带 Authorization）
++
+ function apiKey() { try { return localStorage.getItem('freebuff_api_key') || ''; } catch (e) { return ''; } }
+ function setApiKey(v) {
+   try {
+     localStorage.setItem('freebuff_api_key', v.trim());
+-    toast(v.trim() ? 'API Key 已保存，正在重新加载…' : 'API Key 已清除，正在重新加载…');
++    toast(v.trim() ? 'API key saved. Reloading…' : 'API key cleared. Reloading…');
+     authWarned = false;
+     loadGuide();
+     refreshOverview();
+@@ -426,10 +426,10 @@ async function api(url, opt) {
+ function toast(msg, ms) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms || 2600); }
+ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+ function badge(text, cls) { return `<span class="badge ${cls || 'dim'}">${esc(text)}</span>`; }
+-function copyText(t) { navigator.clipboard?.writeText(t).then(() => toast('已复制')).catch(() => toast('复制失败，请手动选择')); }
+-function fmtTime(ts) { try { return new Date(ts).toLocaleTimeString('zh-CN', { hour12: false }); } catch (e) { return ts || '—'; } }
++function copyText(t) { navigator.clipboard?.writeText(t).then(() => toast('Copied')).catch(() => toast('Copy failed. Select and copy the text manually.')); }
++function fmtTime(ts) { try { return new Date(ts).toLocaleTimeString('en', { hour12: false }); } catch (e) { return ts || '—'; } }
++
+ 
+-// ---------- Tab ----------
+ function showTab(name) {
+   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+   for (const t of ['overview','account','skills','memory','logs','teach','doctor','guide']) {
+@@ -444,16 +444,13 @@ function showTab(name) {
+   if (name === 'guide') loadGuide();
+ }
+ 
+-// ---------- 接入信息（地址 / Key / 客户端配置） ----------
++
+ let guideCache = null;
+-/**
+- * 拉取 /api/guide 并渲染「立刻开始请求」卡 + 接入指南。
+- * 地址与 Key 都由服务端给出，避免前端硬编码与实际监听地址不一致。
+- */
++
+ async function loadGuide() {
+   let g = null;
+   try { g = await api('/api/guide'); } catch (e) { g = null; }
+-  // 区分两种"拿不到"：接口明确回了未配置 vs 请求本身失败（后者最常见的原因是已启用 Key 但本地没存）
++
+   const unknown = !g || !g.ok;
+   if (unknown) {
+     g = { listen_addr: location.host, openai_base_url: '/v1', anthropic_base_url: '/', api_keys: null, api_key_hint: '', models_count: null, models_sample: [], data_plane_ready: null };
+@@ -467,65 +464,65 @@ async function loadGuide() {
+     const configured = !!(g.api_keys && g.api_keys.configured);
+     const local = apiKey();
+     $('c-key').value = unknown
+-      ? (local || '（无法读取接入信息 —— 请在页面右上角填入 API Key）')
++      ? (local || '(Cannot load connection details. Enter the API key at the top right.)')
+       : (configured
+-        ? (local || '（已启用校验 — 点「生成并启用 Key」或把已有 Key 粘到右上角输入框）')
++        ? (local || '(Authentication enabled. Generate a key or enter your existing key at the top right.)')
+         : 'sk-local');
+     $('c-key-hint').innerHTML = unknown
+-      ? `⚠️ 读取接入信息失败${local ? '（本地已存 Key，若仍失败说明 Key 不正确）' : ''} —— 若你在 config.json 配置了 api_keys，请把它粘到页面右上角的输入框。`
++      ? `⚠️ Could not load connection details${local ? ' (a key is saved locally; verify that it is correct)' : ''} — If api_keys is configured, enter a valid key in the top-right field.`
+       : (configured
+-        ? `🔒 已启用 API Key 校验（${g.api_keys.count} 个：${(g.api_keys.masked || []).map(esc).join('、')}）。客户端必须填对 Key。`
+-        : `🔓 未配置 API Key —— 仅本机可访问，客户端随便填一个非空字符串（如 <code>sk-local</code>）即可。`);
++        ? `🔒 API key authentication enabled (${g.api_keys.count}: ${(g.api_keys.masked || []).map(esc).join(', ')}). Your client must use a valid key.`
++        : `🔓 No API key configured. For local access, clients can use any nonempty string (such as <code>sk-local</code>).`);
+     $('c-model-hint').innerHTML = unknown
+-      ? '模型列表与可用数量需要鉴权后才能读取。'
+-      : `可用模型 <b>${g.models_count}</b> 个${(g.models_sample || []).length ? '，例如 ' + g.models_sample.slice(0, 3).map(esc).join('、') + ' …' : ''}（完整列表：<code>${esc(base)}/v1/models</code>）`;
++      ? 'Authenticate to load the model list and available count.'
++      : `Available models <b>${g.models_count}</b>${(g.models_sample || []).length ? ', for example ' + g.models_sample.slice(0, 3).map(esc).join(', ') + ' …' : ''} (full list: <code>${esc(base)}/v1/models</code>)`;
+     $('connect-ready').innerHTML = g.data_plane_ready === true
+-      ? '<span class="tok">✅ 凭证已就绪，可以开始请求</span>'
++      ? '<span class="tok">✅ Credentials ready. You can send requests.</span>'
+       : g.data_plane_ready === false
+-        ? '<span class="twarn">⚠️ 还没有凭证 —— 先去「账号」页一键登录</span>'
+-        : '<span style="color:var(--muted)">状态未知（需要鉴权）</span>';
++        ? '<span class="twarn">⚠️ No credentials yet. Sign in on the Accounts tab first.</span>'
++        : '<span style="color:var(--muted)">Status unknown (authentication required)</span>';
+   }
+   fillGuide(g);
+ }
+ async function genApiKey() {
+-  if (!confirm('生成新的 API Key 并立即生效？\n\n生成后你的客户端需要填这个新 Key（本面板会自动记住）。')) return;
++  if (!confirm('Generate and activate a new API key?\n\nUpdate your clients to use the new key. This dashboard will save it automatically.')) return;
+   try {
+     const r = await api('/api/config/api-key', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'generate' }) });
+     if (r.key) { try { localStorage.setItem('freebuff_api_key', r.key); } catch (e) {} }
+-    toast(r.message || '已生成', 6000);
++    toast(r.message || 'Generated', 6000);
+     loadGuide();
+-  } catch (e) { toast('生成失败：' + e.message, 7000); }
++  } catch (e) { toast('Could not generate: ' + e.message, 7000); }
+ }
+ async function clearApiKey() {
+-  if (!confirm('清除 API Key？\n\n清除后网关变回「仅本机可访问、Key 随便填」模式。')) return;
++  if (!confirm('Clear the API key?\n\nLocal clients will be able to use any nonempty key again.')) return;
+   try {
+     const r = await api('/api/config/api-key', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'clear' }) });
+     try { localStorage.removeItem('freebuff_api_key'); } catch (e) {}
+-    toast(r.message || '已清除', 6000);
++    toast(r.message || 'Cleared', 6000);
+     loadGuide();
+-  } catch (e) { toast('清除失败：' + e.message, 7000); }
++  } catch (e) { toast('Could not clear: ' + e.message, 7000); }
+ }
+ function fillGuide(g) {
+   const base = location.origin;
+-  const key = (g && g.api_keys && g.api_keys.configured) ? (apiKey() || '<你在面板生成的 Key>') : 'sk-local';
++  const key = (g && g.api_keys && g.api_keys.configured) ? (apiKey() || '<your-generated-api-key>') : 'sk-local';
+   const model = (g && (g.models_sample || [])[0]) || 'z-ai/glm-5.3-flash';
+   const gb = $('guide-base'); if (gb) gb.textContent = base;
+   const gk = $('guide-key-hint');
+   if (gk) gk.innerHTML = (g && g.api_keys && g.api_keys.configured)
+-    ? '已在面板生成并启用了 API Key —— 客户端必须填这个 Key（本页面右上角已自动记住）'
+-    : 'config.json 未配置 api_keys 时，任意字符串即可（如 <code>sk-local</code>）';
+-  $('g-claude').textContent = `# macOS / Linux\nexport ANTHROPIC_BASE_URL=${base}\nexport ANTHROPIC_API_KEY=${key}\n\n# Windows PowerShell\n$env:ANTHROPIC_BASE_URL="${base}"\n$env:ANTHROPIC_API_KEY="${key}"\n\n# 然后正常启动 Claude Code 即可（claude 命令）`;
+-  $('g-openai').textContent = `Base URL: ${base}/v1\nAPI Key:  ${key}\n模型:     在 ${base}/v1/models 中选一个（共 ${(g && g.models_count) || '?'} 个）`;
+-  $('g-py').textContent = `from openai import OpenAI\nclient = OpenAI(base_url="${base}/v1", api_key="${key}")\nresp = client.chat.completions.create(model="${model}", messages=[{"role":"user","content":"你好"}])\nprint(resp.choices[0].message.content)`;
+-  $('g-node').textContent = `import OpenAI from "openai";\nconst client = new OpenAI({ baseURL: "${base}/v1", apiKey: "${key}" });\nconst r = await client.chat.completions.create({ model: "${model}", messages: [{ role: "user", content: "你好" }] });\nconsole.log(r.choices[0].message.content);`;
+-  $('g-curl').textContent = `curl ${base}/v1/chat/completions \\\n  -H "content-type: application/json" \\\n  -H "authorization: Bearer ${key}" \\\n  -d "{\\"model\\":\\"${model}\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"说句话证明通啦\\"}]}"`;
+-  $('g-lobe').textContent = `接口地址: ${base}/v1\nAPI Key:  ${key}\n模型名:   手动填 /v1/models 列表中的值（如 ${model}）`;
++    ? 'An API key is enabled. Use it in your client; this dashboard saves generated keys in the top-right field.'
++    : 'If api_keys is not configured, use any nonempty string (such as <code>sk-local</code>)';
++  $('g-claude').textContent = `# macOS / Linux\nexport ANTHROPIC_BASE_URL=${base}\nexport ANTHROPIC_API_KEY=${key}\n\n# Windows PowerShell\n$env:ANTHROPIC_BASE_URL="${base}"\n$env:ANTHROPIC_API_KEY="${key}"\n\n# Start Claude Code with the claude command`;
++  $('g-openai').textContent = `Base URL: ${base}/v1\nAPI Key:  ${key}\nModel:    Choose one from ${base}/v1/models (${(g && g.models_count) || '?'} available)`;
++  $('g-py').textContent = `from openai import OpenAI\nclient = OpenAI(base_url="${base}/v1", api_key="${key}")\nresp = client.chat.completions.create(model="${model}", messages=[{"role":"user","content":"Hello"}])\nprint(resp.choices[0].message.content)`;
++  $('g-node').textContent = `import OpenAI from "openai";\nconst client = new OpenAI({ baseURL: "${base}/v1", apiKey: "${key}" });\nconst r = await client.chat.completions.create({ model: "${model}", messages: [{ role: "user", content: "Hello" }] });\nconsole.log(r.choices[0].message.content);`;
++  $('g-curl').textContent = `curl ${base}/v1/chat/completions \\\n  -H "content-type: application/json" \\\n  -H "authorization: Bearer ${key}" \\\n  -d "{\\"model\\":\\"${model}\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"Say hello to confirm the connection works\\"}]}"`;
++  $('g-lobe').textContent = `Base URL: ${base}/v1\nAPI Key:  ${key}\nModel:    Enter a value from /v1/models (such as ${model})`;
+ }
+ 
+-// ---------- 总览 ----------
++
+ let lastHealth = null;
+-let authWarned = false;      // 鉴权失败只提示一次，不狂闪
+-let overviewTimer = null;    // 总览自动刷新句柄（鉴权失败时暂停，填 Key 后恢复）
++let authWarned = false;
++let overviewTimer = null;
+ async function refreshOverview() {
+   try {
+     const health = await api('/healthz');
+@@ -534,66 +531,66 @@ async function refreshOverview() {
+     $('ver').textContent = 'v' + (health.version || '');
+     const accs = health.accounts || [];
+     const alive = accs.filter(a => a.healthy).length;
+-    $('hstat').innerHTML = `账号 <b>${alive}/${accs.length}</b> · 运行 <b>${Math.floor((health.uptime_sec || 0) / 60)}m</b>`;
++    $('hstat').innerHTML = `Accounts <b>${alive}/${accs.length}</b> · Uptime <b>${Math.floor((health.uptime_sec || 0) / 60)}m</b>`;
+     const totals = await api('/api/usage/totals');
+     const cards = [
+-      ['总请求', totals.total_requests ?? 0],
+-      ['总 Token', (totals.total_tokens ?? 0).toLocaleString()],
+-      ['错误', totals.errors ?? 0],
+-      ['账号', `${alive}/${accs.length}`],
++      ['Total requests', totals.total_requests ?? 0],
++      ['Total tokens', (totals.total_tokens ?? 0).toLocaleString()],
++      ['Errors', totals.errors ?? 0],
++      ['Accounts', `${alive}/${accs.length}`],
+     ];
+     $('cards').innerHTML = cards.map(([l, n]) => `<div class="card"><div class="lbl">${l}</div><div class="num">${n}</div></div>`).join('');
+-    // 速率与错误率（免费层无货币成本，诚实标注来源）
++
+     try {
+       const cost = await api('/api/usage/cost');
+-      $('cost-line').innerHTML = `近 ${cost.window_minutes} 分钟：<b>${cost.requests_30m}</b> 请求 · 错误率 <b>${((cost.error_rate_30m || 0) * 100).toFixed(0)}%</b> · 平均延迟 <b>${((cost.avg_latency_ms_30m || 0) / 1000).toFixed(1)}s</b> · 约 <b>${cost.requests_per_hour}</b> 请求/小时 <span style="opacity:.7">（${esc(cost.cost_source || '')}）</span>`;
++      $('cost-line').innerHTML = `Last ${cost.window_minutes} minutes: <b>${cost.requests_30m}</b> Requests · Error rate <b>${((cost.error_rate_30m || 0) * 100).toFixed(0)}%</b> · Average latency <b>${((cost.avg_latency_ms_30m || 0) / 1000).toFixed(1)}s</b> · about <b>${cost.requests_per_hour}</b> requests/hour <span style="opacity:.7"> (${esc(cost.cost_source || '')})</span>`;
+     } catch (e) { $('cost-line').textContent = ''; }
+-    // 无账号引导
++
+     if (accs.length === 0) {
+-      $('banner').innerHTML = `<div class="banner"><h2>👋 三步开始使用</h2><ol>
+-        <li><b>添加账号</b>：切到「账号」页粘贴 Cookie，或桌面版托盘「一键登录」</li>
+-        <li><b>接入客户端</b>：切到「接入指南」页，复制配置到 Claude Code / Cursor 等</li>
+-        <li><b>开始对话</b>：回来这里就能看到请求、Token、日志与体检</li></ol></div>`;
++      $('banner').innerHTML = `<div class="banner"><h2>👋 Get started in three steps</h2><ol>
++        <li><b>Add account</b>: Paste a cookie on the Accounts tab or choose Login New Account from the desktop tray menu.</li>
++        <li><b>Connect a client</b>: Open Client setup and copy the configuration into Claude Code, Cursor, or another client.</li>
++        <li><b>Start a conversation</b>: Return here to view requests, tokens, logs, and diagnostics.</li></ol></div>`;
+     } else { $('banner').innerHTML = ''; }
+-    // 账号表
+-    $('acc-wrap').innerHTML = accs.length ? `<table><thead><tr><th>账号</th><th>状态</th><th>评分</th><th>会话</th><th>错误</th></tr></thead><tbody>${
++
++    $('acc-wrap').innerHTML = accs.length ? `<table><thead><tr><th>Account</th><th>Status</th><th>Score</th><th>Session</th><th>Errors</th></tr></thead><tbody>${
+       accs.map(a => {
+         const st = a.session?.status || 'unknown';
+         const cls = (st === 'active' || a.healthy) ? 'ok' : (st === 'queued' ? 'warn' : 'err');
+         return `<tr><td>${esc(a.name)}</td><td>${badge(st, cls)}</td><td>${Math.round(a.score ?? 0)}</td><td>${a.session?.instance_id ? esc(String(a.session.instance_id).slice(0, 8)) + '…' : '—'}</td><td>${esc(a.last_error || a.session?.last_error || '')}</td></tr>`;
+-      }).join('')}</tbody></table>` : '<div class="empty">还没有账号 — 去「账号」页添加</div>';
+-    // 用量
++      }).join('')}</tbody></table>` : '<div class="empty">No accounts yet. Add one on the Accounts tab.</div>';
++
+     const daily = await api('/api/usage/daily');
+-    $('daily-wrap').innerHTML = (daily && daily.length) ? `<table><thead><tr><th>日期</th><th>模型</th><th>请求</th><th>输入tok</th><th>输出tok</th><th>错误</th></tr></thead><tbody>${
+-      daily.slice(0, 30).map(d => `<tr><td>${esc(d.date)}</td><td>${esc(d.model)}</td><td>${d.requests}</td><td>${d.prompt_tokens}</td><td>${d.completion_tokens}</td><td>${d.errors}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">暂无用量 — 发起一次对话后这里会有数据</div>';
+-    // 请求
++    $('daily-wrap').innerHTML = (daily && daily.length) ? `<table><thead><tr><th>Date</th><th>Model</th><th>Requests</th><th>Input tokens</th><th>Output tokens</th><th>Errors</th></tr></thead><tbody>${
++      daily.slice(0, 30).map(d => `<tr><td>${esc(d.date)}</td><td>${esc(d.model)}</td><td>${d.requests}</td><td>${d.prompt_tokens}</td><td>${d.completion_tokens}</td><td>${d.errors}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">No usage yet. Start a conversation to see data here.</div>';
++
+     const reqs = await api('/api/usage/requests');
+-    $('reqs-wrap').innerHTML = (reqs && reqs.length) ? `<table><thead><tr><th>时间</th><th>账号</th><th>模型</th><th>状态</th><th>延迟</th><th>Tokens</th></tr></thead><tbody>${
++    $('reqs-wrap').innerHTML = (reqs && reqs.length) ? `<table><thead><tr><th>Time</th><th>Account</th><th>Model</th><th>Status</th><th>Latency</th><th>Tokens</th></tr></thead><tbody>${
+       reqs.slice(0, 20).map(r => {
+         const cls = r.status < 400 ? 'ok' : (r.status < 500 ? 'warn' : 'err');
+         const tk = (r.prompt_tokens || 0) + (r.completion_tokens || 0);
+         return `<tr class="click" onclick="openDrawer(${r.id})"><td>${fmtTime(r.ts)}</td><td>${esc(r.account)}</td><td>${esc(r.model)}</td><td>${badge(r.status, cls)}</td><td>${(r.latency_ms / 1000).toFixed(2)}s</td><td>${tk || '—'}</td></tr>`;
+-      }).join('')}</tbody></table>` : '<div class="empty">暂无请求记录</div>';
+-    // 模型
++      }).join('')}</tbody></table>` : '<div class="empty">No requests yet</div>';
++
+     const models = await api('/api/usage/models');
+     $('model-count').textContent = (models || []).length;
+-    $('models-wrap').innerHTML = (models || []).map(m => `<span class="chip">${esc(m)}</span>`).join('') || '<div class="empty">模型列表为空（检查上游连通性）</div>';
++    $('models-wrap').innerHTML = (models || []).map(m => `<span class="chip">${esc(m)}</span>`).join('') || '<div class="empty">No models found. Check upstream connectivity.</div>';
+     if (authWarned) { authWarned = false; $('banner').innerHTML = ''; }
+     if (!overviewTimer) startOverviewTimer();
+   } catch (e) {
+     $('dot').className = 'dot err';
+     const m = String(e.message || '');
+-    // 网关启用了 API Key 而浏览器还没填：给一次性引导，并暂停自动刷新（否则红灯 + toast 每 6 秒狂闪）
+-    if (/unauthorized|api key|鉴权|认证/i.test(m)) {
++
++    if (/unauthorized|api key|\u9274\u6743|\u8ba4\u8bc1/i.test(m)) {
+       if (!authWarned) {
+         authWarned = true;
+-        toast('该网关已启用 API Key 校验 —— 请在页面右上角输入框填入 Key', 8000);
+-        $('banner').innerHTML = `<div class="banner"><h2>🔑 需要鉴权</h2>
+-          <p style="font-size:13px;color:var(--muted);margin-top:6px">网关配置了 <code>api_keys</code>。在<b>页面右上角的输入框</b>填入 Key（只存本机浏览器），填完这里会自动恢复。</p></div>`;
++        toast('This gateway requires an API key. Enter it in the top-right field.', 8000);
++        $('banner').innerHTML = `<div class="banner"><h2>🔑 Authentication required</h2>
++          <p style="font-size:13px;color:var(--muted);margin-top:6px">This gateway has <code>api_keys</code> configured. Enter the key in the <b>top-right field</b> (stored only in this browser). The dashboard will reload automatically.</p></div>`;
+         if (overviewTimer) { clearInterval(overviewTimer); overviewTimer = null; }
+       }
+     } else {
+-      toast('加载失败: ' + m);
++      toast('Could not load: ' + m);
+     }
+   }
+ }
+@@ -607,72 +604,72 @@ async function loadBalance() {
+     const r = await fetch('/api/account/balance', { headers: apiKey() ? { authorization: 'Bearer ' + apiKey() } : {} });
+     if (!r.ok) {
+       $('balance-panel').style.display = '';
+-      $('balance-wrap').innerHTML = '<div class="empty">需要 web Cookie 凭证才能查询积分（先在「添加账号」导入 Cookie）</div>';
++      $('balance-wrap').innerHTML = '<div class="empty">A web cookie is required to check credits. Import one under Add account first.</div>';
+       return;
+     }
+     const bal = await r.json();
+     if (bal && bal.ok !== false) {
+       $('balance-panel').style.display = '';
+       const d = bal.freebucks?.daily || {};
+-      let html = `<p style="font-size:13px;color:var(--muted)">套餐 <b>${esc(bal.subscription?.tierId || '免费')}</b> · 层级 ${esc(bal.access_tier || '—')}${bal.country_block_reason ? ' · ⚠️ 地区受限(' + esc(bal.country_block_reason) + ')' : ''}</p>`;
+-      if (d.limit != null) html += `<p style="font-size:13px;color:var(--muted)">今日积分 <b class="tok">${d.remaining ?? '—'}</b> / ${d.limit ?? '—'}（已用 ${d.spent ?? 0}）</p>`;
++      let html = `<p style="font-size:13px;color:var(--muted)">Plan <b>${esc(bal.subscription?.tierId || 'Free')}</b> · Tier ${esc(bal.access_tier || '—')}${bal.country_block_reason ? ' · ⚠️ Region restricted (' + esc(bal.country_block_reason) + ')' : ''}</p>`;
++      if (d.limit != null) html += `<p style="font-size:13px;color:var(--muted)">Daily credits <b class="tok">${d.remaining ?? '—'}</b> / ${d.limit ?? '—'} (used ${d.spent ?? 0})</p>`;
+       const mr = bal.model_remaining || {};
+-      const rows = Object.entries(mr).slice(0, 30).map(([m, v]) => `<tr><td>${esc(m)}</td><td>${v.price === 0 ? '<b class="tok">免费</b>' : v.price}</td><td>${v.usable_today === -1 ? '不限' : v.usable_today}</td></tr>`).join('');
+-      if (rows) html += `<table style="margin-top:8px"><thead><tr><th>模型</th><th>积分价</th><th>今日剩余</th></tr></thead><tbody>${rows}</tbody></table>`;
++      const rows = Object.entries(mr).slice(0, 30).map(([m, v]) => `<tr><td>${esc(m)}</td><td>${v.price === 0 ? '<b class="tok">Free</b>' : v.price}</td><td>${v.usable_today === -1 ? 'Unlimited' : v.usable_today}</td></tr>`).join('');
++      if (rows) html += `<table style="margin-top:8px"><thead><tr><th>Model</th><th>Credit price</th><th>Remaining today</th></tr></thead><tbody>${rows}</tbody></table>`;
+       $('balance-wrap').innerHTML = html;
+     } else {
+       $('balance-panel').style.display = '';
+-      $('balance-wrap').innerHTML = '<div class="empty">需要 web Cookie 凭证才能查询积分（先在「添加账号」导入 Cookie）</div>';
++      $('balance-wrap').innerHTML = '<div class="empty">A web cookie is required to check credits. Import one under Add account first.</div>';
+     }
+-  } catch (e) { /* 无 Cookie 时静默 */ }
++  } catch (e) {  }
+ }
+ 
+-// ---------- 请求详情 ----------
++
+ async function openDrawer(id) {
+   $('drawer').classList.add('open');
+-  $('dr-title').textContent = '请求 #' + id;
+-  $('dr-body').innerHTML = '<div class="empty">加载中…</div>';
++  $('dr-title').textContent = 'Request #' + id;
++  $('dr-body').innerHTML = '<div class="empty">Loading…</div>';
+   try {
+     const d = await api('/api/usage/requests/' + id);
+     const r = d.request || {};
+     const events = d.events || [];
+     let html = '';
+-    html += `<div class="kv"><b>时间</b>${esc(r.ts)}</div>`;
+-    html += `<div class="kv"><b>端点</b>${esc(r.endpoint || '—')}</div>`;
+-    html += `<div class="kv"><b>账号</b>${esc(r.account)}</div>`;
+-    html += `<div class="kv"><b>请求模型</b>${esc(r.requested_model || r.model)}</div>`;
+-    html += `<div class="kv"><b>实际模型</b>${esc(r.resolved_model || r.model)}</div>`;
+-    html += `<div class="kv"><b>状态</b>${r.status} ${esc(r.error_kind ? '(' + r.error_kind + ')' : '')}</div>`;
+-    html += `<div class="kv"><b>延迟</b>${(r.latency_ms / 1000).toFixed(2)}s${r.ttft_ms ? '（首字节 ' + r.ttft_ms + 'ms）' : ''}</div>`;
+-    html += `<div class="kv"><b>Tokens</b>输入 ${r.prompt_tokens || 0} / 输出 ${r.completion_tokens || 0}</div>`;
+-    if (r.route_reason) html += `<div class="kv"><b>路由原因</b>${esc(r.route_reason)}</div>`;
+-    if (r.error_excerpt) html += `<details open><summary>错误详情</summary><pre>${esc(r.error_excerpt)}</pre></details>`;
+-    html += `<div class="kv" style="margin-top:10px"><b>人话解释</b>${esc(explain(r))}</div>`;
+-    if (events.length) html += `<details open><summary>事件链（${events.length}）</summary>${events.map(e => `<div class="kv" style="font-size:12px"><b>${fmtTime(e.ts)} ${esc(e.kind)}</b>${esc(e.detail)}</div>`).join('')}</details>`;
++    html += `<div class="kv"><b>Time</b>${esc(r.ts)}</div>`;
++    html += `<div class="kv"><b>Endpoint</b>${esc(r.endpoint || '—')}</div>`;
++    html += `<div class="kv"><b>Account</b>${esc(r.account)}</div>`;
++    html += `<div class="kv"><b>Requested model</b>${esc(r.requested_model || r.model)}</div>`;
++    html += `<div class="kv"><b>Actual model</b>${esc(r.resolved_model || r.model)}</div>`;
++    html += `<div class="kv"><b>Status</b>${r.status} ${esc(r.error_kind ? '(' + r.error_kind + ')' : '')}</div>`;
++    html += `<div class="kv"><b>Latency</b>${(r.latency_ms / 1000).toFixed(2)}s${r.ttft_ms ? ' (first byte ' + r.ttft_ms + 'ms)' : ''}</div>`;
++    html += `<div class="kv"><b>Tokens</b>Input ${r.prompt_tokens || 0} / Output ${r.completion_tokens || 0}</div>`;
++    if (r.route_reason) html += `<div class="kv"><b>Routing reason</b>${esc(r.route_reason)}</div>`;
++    if (r.error_excerpt) html += `<details open><summary>Error details</summary><pre>${esc(r.error_excerpt)}</pre></details>`;
++    html += `<div class="kv" style="margin-top:10px"><b>Explanation</b>${esc(explain(r))}</div>`;
++    if (events.length) html += `<details open><summary>Event chain (${events.length})</summary>${events.map(e => `<div class="kv" style="font-size:12px"><b>${fmtTime(e.ts)} ${esc(e.kind)}</b>${esc(e.detail)}</div>`).join('')}</details>`;
+     $('dr-body').innerHTML = html;
+-  } catch (e) { $('dr-body').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
++  } catch (e) { $('dr-body').innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; }
+ }
+ function closeDrawer() { $('drawer').classList.remove('open'); }
+ function explain(r) {
+   const k = r.error_kind || '';
+-  if (k === 'waiting_room') return '上游免费队列排队中 —— 这不是网关故障，稍等重试即可。';
+-  if (k === 'no_account') return '没有可用账号 —— 去「账号」页添加。';
+-  if (k === 'upstream_4xx') return '上游拒绝了这次请求（多为账号凭证过期或模型不可用）。查看错误详情。';
+-  if (k === 'upstream_5xx') return '上游服务端错误 —— 通常重试即可，网关会自动切换账号。';
+-  if (k === 'network' || k === 'timeout') return '网络超时/中断 —— 检查代理设置与上游连通性（体检页可测）。';
+-  if (r.status >= 200 && r.status < 300) return '请求成功。' + (r.ttft_ms ? `首字节 ${r.ttft_ms}ms，` : '') + `总耗时 ${(r.latency_ms / 1000).toFixed(2)}s。`;
+-  return '暂无解释数据。';
++  if (k === 'waiting_room') return 'The upstream free tier has queued this request. Wait a little and retry.';
++  if (k === 'no_account') return 'No available account. Add one on the Accounts tab.';
++  if (k === 'upstream_4xx') return 'The upstream service rejected the request, often because credentials expired or the model is unavailable. See the error details.';
++  if (k === 'upstream_5xx') return 'The upstream service returned a server error. Retry; the gateway can switch accounts automatically.';
++  if (k === 'network' || k === 'timeout') return 'The network timed out or disconnected. Check proxy settings and upstream connectivity on the Diagnostics tab.';
++  if (r.status >= 200 && r.status < 300) return 'Request succeeded. ' + (r.ttft_ms ? `First byte ${r.ttft_ms}ms, ` : '') + `Total duration ${(r.latency_ms / 1000).toFixed(2)}s.`;
++  return 'No explanation available.';
+ }
+ 
+-// ---------- 余额卡 ----------
+-// ---------- 浏览器扩展桥（面板 ↔ 扩展 直连） ----------
+-// 扩展的 bridge.js content script 会 postMessage 广播自己的 id；
+-// 拿到 id 后本页就能用 chrome.runtime.sendMessage 直接指挥扩展读 Cookie（真正的一键登录）。
++
++
++
++
+ let extId = null, extVersion = '';
+ function pingExtension(showToast) {
+   try { window.postMessage({ source: 'freebuff2api-page', type: 'ping' }, location.origin); } catch (e) {}
+   if (showToast) setTimeout(() => {
+-    toast(extId ? `扩展已就绪（v${extVersion || '?'}）` : '未检测到扩展 —— 可点「⬇ 下载扩展」安装，或用手动向导', 5000);
++    toast(extId ? `Extension ready (v${extVersion || '?'})` : 'Extension not detected. Click Download extension to install it, or use the manual wizard.', 5000);
+   }, 600);
+ }
+ window.addEventListener('message', (e) => {
+@@ -682,20 +679,20 @@ window.addEventListener('message', (e) => {
+   const isNew = extId !== d.id;
+   extId = d.id; extVersion = d.version || '';
+   renderExtStatus();
+-  if (isNew && $('tab-account') && $('tab-account').style.display !== 'none') { /* 首次进入时静默 */ }
++  if (isNew && $('tab-account') && $('tab-account').style.display !== 'none') {  }
+ });
+ function renderExtStatus() {
+   const el = $('ext-status');
+   if (!el) return;
+-  if (extId) { el.className = 'badge ok'; el.textContent = `扩展已就绪 v${extVersion || '?'}`; }
+-  else { el.className = 'badge dim'; el.textContent = '未检测到扩展（可手动粘贴导入）'; }
++  if (extId) { el.className = 'badge ok'; el.textContent = `Extension ready v${extVersion || '?'}`; }
++  else { el.className = 'badge dim'; el.textContent = 'Extension not detected (manual import available)'; }
+ }
+ function extensionAvailable() {
+   return !!extId && typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function';
+ }
+ function sendToExtension(msg) {
+   return new Promise((resolve, reject) => {
+-    const timer = setTimeout(() => reject(new Error('扩展未在规定时间内响应（可能被浏览器回收，请刷新页面重试）')), 20000);
++    const timer = setTimeout(() => reject(new Error('The extension did not respond in time. Refresh the page and retry.')), 20000);
+     try {
+       chrome.runtime.sendMessage(extId, msg, (resp) => {
+         clearTimeout(timer);
+@@ -710,231 +707,221 @@ function downloadExtension() {
+   window.open('/api/extension/bundle' + (k ? '?key=' + encodeURIComponent(k) : ''), '_blank');
+ }
+ 
+-// ---------- 账号 / 导入 ----------
+-// ---------- 内嵌 WebView2 登录窗口（网关派生 --login-window 子进程） ----------
+-/**
+- * 弹出内嵌登录窗口：后端 spawn `当前exe --login-window`（独立进程，tao+WebView2 事件循环），
+- * 用户在窗口里完成 GitHub 登录后由后端自动抓 Cookie（含 HttpOnly）并入库。
+- * 结果通过面板轮询 /api/tokens 感知（凭证数量增加即成功）。
+- */
++
++
++
+ async function openEmbedLogin() {
+   const st = $('embed-status');
+-  if (st) st.textContent = '正在弹出窗口…';
++  if (st) st.textContent = 'Opening window…';
+   try {
+     const r = await api('/api/login/embed', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+     if (!r.ok) {
+-      if (st) st.innerHTML = '<span class="terr">' + esc(r.message || '当前环境不支持') + '</span>';
+-      toast('内嵌窗口不可用：' + (r.message || '请改用方案 B/C'), 8000);
++      if (st) st.innerHTML = '<span class="terr">' + esc(r.message || 'Not supported in this environment') + '</span>';
++      toast('Embedded window unavailable: ' + (r.message || 'Use option B or C instead'), 8000);
+       return;
+     }
+-    toast('内嵌登录窗口已弹出 —— 在窗口里完成 GitHub 登录即可自动入库', 8000);
+-    if (st) st.innerHTML = '<span class="tok">窗口已弹出，等待登录…</span>';
++    toast('Login window opened. Complete GitHub sign-in to import your credentials automatically.', 8000);
++    if (st) st.innerHTML = '<span class="tok">Window opened. Waiting for sign-in…</span>';
+     const before = await tokenCount();
+-    // 双通道感知：凭证数量增加（成功）或结果文件报告失败（子进程退出码非 0）
++
+     const deadline = Date.now() + 600000;
+     while (Date.now() < deadline) {
+       await new Promise(res => setTimeout(res, 3000));
+       const now = await tokenCount();
+       if (before >= 0 && now > before) {
+-        toast('✅ 内嵌窗口登录成功，凭证已自动入库', 6000);
+-        if (st) st.innerHTML = '<span class="tok">✅ 已入库</span>';
++        toast('✅ Sign-in succeeded. Credentials imported automatically.', 6000);
++        if (st) st.innerHTML = '<span class="tok">✅ Saved</span>';
+         refreshTokens(); refreshAccountOverview(); loadHistory();
+         return;
+       }
+-      // 失败结果文件（子进程异常退出时后端落盘）
++
+       try {
+         const fr = await api('/api/login/result');
+         if (fr && fr.ok === false && fr.message) {
+           if (st) st.innerHTML = '<span class="terr">' + esc(fr.message) + '</span>';
+-          toast('内嵌登录窗口退出：' + fr.message, 9000);
++          toast('Login window exited: ' + fr.message, 9000);
+           return;
+         }
+-      } catch (e2) { /* 结果文件接口失败不阻塞主轮询 */ }
++      } catch (e2) {  }
+     }
+-    if (st) st.innerHTML = '<span class="twarn">等待超时（10 分钟）</span>';
+-    toast('等待登录超时 —— 请重试或改用方案 B/C', 8000);
++    if (st) st.innerHTML = '<span class="twarn">Timed out after 10 minutes</span>';
++    toast('Sign-in timed out. Retry or use option B or C.', 8000);
+   } catch (e) {
+     if (st) st.innerHTML = '<span class="terr">' + esc(e.message) + '</span>';
+-    toast('弹出失败：' + e.message + ' —— 请改用方案 B/C', 8000);
++    toast('Could not open window: ' + e.message + ' —— Use option B or C instead', 8000);
+   }
+ }
+ 
+ async function oneClickLogin() {
+-  // [主控接线] 内嵌窗口分派将插入此处（内嵌 WebView2 登录窗口优先，由主控实现）
+-  // 路径 1：桌面版 Electron（主进程可直接读 HttpOnly Cookie）
++
++
+   if (window.freebuffDesktop && window.freebuffDesktop.openLogin) {
+     window.freebuffDesktop.openLogin();
+-    toast('已打开登录窗口，登录 freebuff.com 后 Cookie 会自动入库');
++    toast('Login window opened. Sign in at freebuff.com to import cookies automatically.');
+     return;
+   }
+-  // 路径 2：浏览器扩展直连 —— 全自动（自动打开 freebuff.com → 等待登录 → 自动入库）
++
+   if (extensionAvailable()) {
+     await oneClickViaExtension();
+     return;
+   }
+-  // 路径 3：降级为手动向导（高亮"剪贴板自动检测"——步骤最少的手动路径）
++
+   const wiz = $('login-wizard');
+   wiz.style.display = '';
+   wiz.scrollIntoView({ behavior: 'smooth', block: 'start' });
+   const clipCard = $('wizard-clip');
+   if (clipCard) {
+     clipCard.classList.remove('wizard-flash');
+-    // 强制 reflow 让动画可以重复触发
++
+     void clipCard.offsetWidth;
+     clipCard.classList.add('wizard-flash');
+   }
+   window.open('https://freebuff.com/', '_blank', 'noopener');
+-  toast('未检测到浏览器扩展 —— 已打开 freebuff.com，推荐用向导「方案 B：自动检测剪贴板」（复制回来点一下即可）', 9000);
++  toast('Extension not detected. Opened freebuff.com; use option B in the wizard to import from your clipboard.', 9000);
+ }
+-/**
+- * 剪贴板自动导入：读取剪贴板文本 → 填入输入框 → 自动触发导入。
+- * 剪贴板 API 需要安全上下文且部分浏览器要求页面先获得焦点，失败时明确提示改用手动粘贴（降级路径始终存在）。
+- */
++
+ async function importFromClipboard() {
+   const st = $('clip-status');
+-  if (st) st.textContent = '正在读取剪贴板…（若浏览器弹窗询问权限，请允许）';
++  if (st) st.textContent = 'Reading clipboard… Allow access if the browser asks.';
+   let text = '';
+   try {
+     if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+-      throw new Error('当前浏览器不支持读取剪贴板（或页面不在 HTTPS/localhost 安全上下文）');
++      throw new Error('Clipboard access is unavailable in this browser or requires HTTPS/localhost.');
+     }
+     text = (await navigator.clipboard.readText()).trim();
+   } catch (e) {
+-    if (st) st.innerHTML = `<span class="twarn">读取剪贴板失败：${esc(e.message)}</span> —— 请改用下方输入框手动粘贴（Ctrl+V），效果完全一样`;
+-    toast('无法读取剪贴板 —— 请手动粘贴到输入框后点「导入」', 7000);
++    if (st) st.innerHTML = `<span class="twarn">Could not read clipboard: ${esc(e.message)}</span> — Paste into the field below instead (Cmd+V on Mac, Ctrl+V on Windows).`;
++    toast('Cannot read clipboard. Paste into the field and click Import.', 7000);
+     $('import-text').focus();
+     return;
+   }
+   if (!text) {
+-    if (st) st.innerHTML = '<span class="twarn">剪贴板是空的 —— 请先去 freebuff.com 的 DevTools 里复制 Cookie 整行（Ctrl+C）</span>';
++    if (st) st.innerHTML = '<span class="twarn">Clipboard is empty. Copy the full Cookie header from DevTools at freebuff.com first.</span>';
+     return;
+   }
+-  if (st) st.textContent = '已从剪贴板取到内容，开始自动导入…';
++  if (st) st.textContent = 'Clipboard content received. Importing…';
+   $('import-text').value = text;
+-  toast('已从剪贴板读取内容，正在自动导入…', 4000);
++  toast('Clipboard content received. Importing…', 4000);
+   await doImport('clipboard');
+ }
+-/**
+- * 导入成功后的即贴即验：找出最新入库的凭证 → 调上游检查端点 → 把结果直接显示在向导里。
+- * id 匹配不到时静默跳过（列表刷新已由 doImport 完成，不阻塞主流程）。
+- */
++
+ async function verifyNewCredential() {
+   const box = $('import-verify');
+   if (!box) return;
+   box.style.display = '';
+-  box.innerHTML = '<span style="color:var(--muted)">⏳ 正在向上游验证刚导入的凭证…（需要几秒）</span>';
++  box.innerHTML = '<span style="color:var(--muted)">⏳ Verifying the imported credential with the upstream service… This may take a few seconds.</span>';
+   try {
+     const r = await api('/api/tokens');
+     const list = r.tokens || [];
+-    // 列表接口不保证排序，比较入库时间取最新一条
++
+     const newest = list.slice().sort((a, b) => String(b.added_at || '').localeCompare(String(a.added_at || '')))[0];
+     if (!newest || !newest.id) { box.style.display = 'none'; return; }
+     const c = await api('/api/tokens/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: newest.id }) });
+     if (c.ok && c.valid) {
+       const m = c.meta || {};
+-      const who = m.email || m.name || '账号信息已更新';
+-      box.innerHTML = `<span class="tok">✅ 已验证：${esc(who)}</span> <span style="color:var(--muted)">（${esc([m.name, m.email].filter(Boolean).join(' · ') || '凭证有效')}）</span>`;
++      const who = m.email || m.name || 'Account details updated';
++      box.innerHTML = `<span class="tok">✅ Verified: ${esc(who)}</span> <span style="color:var(--muted)"> (${esc([m.name, m.email].filter(Boolean).join(' · ') || 'Credential valid')})</span>`;
+     } else {
+-      box.innerHTML = `<span class="twarn">⚠️ Cookie 已录入但上游校验失败（可能未登录或已过期），请重新复制</span>${c.message ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">上游说：${esc(c.message)}</div>` : ''}`;
++      box.innerHTML = `<span class="twarn">⚠️ Cookie saved, but upstream verification failed. It may be expired or signed out. Copy a fresh cookie.</span>${c.message ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">Upstream response: ${esc(c.message)}</div>` : ''}`;
+     }
+   } catch (e) {
+-    box.innerHTML = `<span class="twarn">⚠️ 自动验证失败：${esc(e.message)}</span> <span style="color:var(--muted)">—— 凭证已入库，可稍后在凭证列表点「检查」手动验证</span>`;
++    box.innerHTML = `<span class="twarn">⚠️ Automatic verification failed: ${esc(e.message)}</span> <span style="color:var(--muted)">— Credential saved. You can verify it later with Check in the credential list.</span>`;
+   }
+ }
+ async function oneClickViaExtension() {
+-  toast('正在通知扩展…', 3000);
++  toast('Contacting extension…', 3000);
+   const before = await tokenCount();
+   let resp = null;
+   try {
+     resp = await sendToExtension({ type: 'freebuff2api.import', gatewayPort: Number(location.port || 47821), apiKey: apiKey() });
+   } catch (e) {
+-    toast('调用扩展失败：' + e.message, 7000);
++    toast('Extension request failed: ' + e.message, 7000);
+     return;
+   }
+-  if (resp && resp.ok === false) { toast('扩展返回：' + (resp.message || '导入失败'), 8000); return; }
++  if (resp && resp.ok === false) { toast('Extension response: ' + (resp.message || 'Import failed'), 8000); return; }
+   if (resp && resp.done) {
+-    // 扩展已同步完成（已登录且已导入 / 或已存在去重）—— 无需轮询
++
+     if (resp.added > 0) {
+-      toast(`✅ 扩展已导入 ${resp.added} 个凭证`, 6000);
++      toast(`✅ Extension imported ${resp.added} credentials`, 6000);
+       refreshTokens(); refreshAccountOverview(); loadHistory();
+     } else {
+-      toast('该账号凭证已在库中（同值自动去重，无需重复导入）', 7000);
++      toast('This credential is already saved. Duplicate values are ignored.', 7000);
+       refreshTokens();
+     }
+     return;
+   }
+   if (resp && resp.needLogin) {
+-    toast('已自动打开 freebuff.com —— 完成 GitHub 登录后凭证会自动入库（最多等 3 分钟）', 9000);
++    toast('Opened freebuff.com. Complete GitHub sign-in to import credentials automatically (up to 3 minutes).', 9000);
+   } else {
+-    toast('扩展已开始导入，正在等待凭证入库…', 6000);
++    toast('Extension import started. Waiting for credentials…', 6000);
+   }
+   pollForNewCredential(before, 180000);
+ }
+ async function tokenCount() {
+   try { const r = await api('/api/tokens'); return (r.tokens || []).length; } catch (e) { return -1; }
+ }
+-/** 轮询等待扩展把凭证写进网关（扩展是独立进程，只能靠轮询收敛） */
++
+ async function pollForNewCredential(before, timeoutMs) {
+-  // 基线没取到（before<0）时先补取一次，避免"任何请求成功都误报为入库"
++
+   if (before < 0) before = await tokenCount();
+   const deadline = Date.now() + timeoutMs;
+   while (Date.now() < deadline) {
+     await new Promise(r => setTimeout(r, 3000));
+     const now = await tokenCount();
+     if (before >= 0 && now > before) {
+-      toast('✅ 凭证已自动入库，正在拉取账号信息…', 6000);
++      toast('✅ Credentials imported. Loading account details…', 6000);
+       refreshTokens(); refreshAccountOverview(); loadHistory();
+       return;
+     }
+   }
+-  toast('等待登录超时 —— 完成登录后点扩展图标，或回到本页点「刷新」', 8000);
++  toast('Sign-in timed out. After signing in, click the extension icon or return here and click Refresh.', 8000);
+ }
+ async function doImport(source) {
+   const text = $('import-text').value.trim();
+-  if (!text) { toast('请先粘贴内容'); return; }
+-  $('import-result').textContent = '导入中…';
++  if (!text) { toast('Paste content first'); return; }
++  $('import-result').textContent = 'Importing…';
+   const verifyBox = $('import-verify');
+   if (verifyBox) { verifyBox.style.display = 'none'; verifyBox.innerHTML = ''; }
+   try {
+     const r = await api('/api/tokens/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ cookie: text }) });
+     if (r.added > 0) {
+-      $('import-result').innerHTML = `<span class="tok">✅ 成功导入 ${r.added} 个凭证${source === 'clipboard' ? '（来源：剪贴板）' : ''}</span>`;
++      $('import-result').innerHTML = `<span class="tok">✅ Imported ${r.added} credentials${source === 'clipboard' ? ' (from clipboard)' : ''}</span>`;
+       $('import-text').value = '';
+       $('login-wizard').style.display = 'none';
+-      toast(source === 'clipboard' ? '✅ 剪贴板内容导入成功，正在验证凭证…' : '导入成功，正在拉取账号信息…');
++      toast(source === 'clipboard' ? '✅ Clipboard imported. Verifying credentials…' : 'Import succeeded. Loading account details…');
+       refreshTokens();
+       refreshAccountOverview();
+       loadHistory();
+-      // 即贴即验：导入成功后立刻向上游验证新凭证并把结果显示在向导附近
++
+       verifyNewCredential();
+     } else {
+-      $('import-result').innerHTML = `<span class="twarn">该凭证已存在（同值自动去重，未重复入库）</span>`;
++      $('import-result').innerHTML = `<span class="twarn">Credential already exists. Duplicate values are ignored.</span>`;
+       refreshTokens();
+     }
+-  } catch (e) { $('import-result').innerHTML = `<span class="terr">导入失败：${esc(e.message)}</span>`; }
++  } catch (e) { $('import-result').innerHTML = `<span class="terr">Import failed: ${esc(e.message)}</span>`; }
+ }
+ 
+-// ---------- 凭证列表（账号详细信息 / 入库时间 / 检查 / 删除） ----------
++
+ let tokenCache = [];
+ async function refreshTokens() {
+   try {
+     const r = await api('/api/tokens');
+     const list = r.tokens || [];
+     tokenCache = list;
+-    $('cred-count').textContent = list.length ? `（${list.length} 个 · 同值自动去重）` : '';
++    $('cred-count').textContent = list.length ? ` (${list.length} credentials; duplicates ignored)` : '';
+     fillHistoryCredOptions(list);
+     $('tokens-wrap').innerHTML = list.length ? `<table><thead><tr>
+-        <th>账号</th><th>类型</th><th>凭证</th><th>套餐</th><th>今日剩余</th><th>入库时间</th><th>操作</th>
++        <th>Account</th><th>Type</th><th>Credential</th><th>Plan</th><th>Remaining today</th><th>Added at</th><th>Actions</th>
+       </tr></thead><tbody>${
+       list.map((t, i) => {
+         const m = t.meta || null;
+         const acct = m
+           ? `<div style="font-weight:600">${esc(m.name || '—')}</div><div style="font-size:12px;color:var(--muted)">${esc(m.email || '')}</div>`
+-          : `<span style="color:var(--muted)">未检查</span>`;
+-        const validBadge = m ? (m.valid ? badge('有效', 'ok') : badge('可能失效', 'err')) : '';
+-        const tier = m ? (m.tier_id ? badge(m.tier_id, 'ok') : badge('免费', 'dim')) : '—';
++          : `<span style="color:var(--muted)">Not checked</span>`;
++        const validBadge = m ? (m.valid ? badge('Valid', 'ok') : badge('Possibly expired', 'err')) : '';
++        const tier = m ? (m.tier_id ? badge(m.tier_id, 'ok') : badge('Free', 'dim')) : '—';
+         const remain = (m && m.daily_remaining != null) ? `<b>${m.daily_remaining}</b> / ${m.daily_limit ?? '—'}` : '—';
+-        const added = t.added_at ? new Date(t.added_at).toLocaleString('zh-CN', { hour12: false }) : '—';
++        const added = t.added_at ? new Date(t.added_at).toLocaleString('en', { hour12: false }) : '—';
+         return `<tr>
+           <td>${acct} ${validBadge}</td>
+           <td>${t.kind === 'web-cookie' ? badge('Web Cookie', 'ok') : badge('Bearer', 'dim')}</td>
+@@ -943,77 +930,77 @@ async function refreshTokens() {
+           <td style="font-size:12px">${remain}</td>
+           <td style="font-size:12px">${esc(added)}</td>
+           <td class="row">
+-            <button class="ghost sm" onclick="checkCredAt(${i})">检查</button>
+-            <button class="ghost sm" onclick="openCredDetail(${i})">详情</button>
+-            <button class="ghost sm" onclick="deleteCredAt(${i})">删除</button>
++            <button class="ghost sm" onclick="checkCredAt(${i})">Check</button>
++            <button class="ghost sm" onclick="openCredDetail(${i})">Details</button>
++            <button class="ghost sm" onclick="deleteCredAt(${i})">Delete</button>
+           </td></tr>`;
+-      }).join('')}</tbody></table>` : '<div class="empty">还没有导入凭证 — 用上方「一键登录」或粘贴导入</div>';
+-  } catch (e) { $('tokens-wrap').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
++      }).join('')}</tbody></table>` : '<div class="empty">No credentials yet. Use Sign in above or paste credentials to import.</div>';
++  } catch (e) { $('tokens-wrap').innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; }
+ }
+ function checkCredAt(i) { const t = tokenCache[i]; if (t) checkCred(t.id); }
+ function deleteCredAt(i) { const t = tokenCache[i]; if (t) deleteCred(t.id, (t.meta && t.meta.email) || t.token_masked); }
+ function openCredDetail(i) { const t = tokenCache[i]; if (t) renderCredDetail(t); }
+ 
+ async function checkCred(id) {
+-  toast('正在检查该凭证…（需要几秒）');
++  toast('Checking credential… This may take a few seconds.');
+   try {
+     const r = await api('/api/tokens/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+-    toast(r.message || (r.ok ? '凭证有效' : '凭证可能已失效'), 7000);
++    toast(r.message || (r.ok ? 'Credential valid' : 'Credential may have expired'), 7000);
+     refreshTokens();
+     loadHistory();
+-  } catch (e) { toast('检查失败：' + e.message, 7000); }
++  } catch (e) { toast('Check failed: ' + e.message, 7000); }
+ }
+ async function deleteCred(id, label) {
+-  if (!confirm(`确定删除凭证 ${label || ''}？\n\n删除后会同时从运行中的账号池移除，需要重新登录导入才能恢复。`)) return;
++  if (!confirm(`Delete credential ${label || ''}?\n\nThis also removes it from the active account pool. Sign in and import again to restore it.`)) return;
+   try {
+     const r = await api('/api/tokens/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) });
+-    toast(r.message || '已删除', 5000);
++    toast(r.message || 'Deleted', 5000);
+     refreshTokens();
+     loadHistory();
+-  } catch (e) { toast('删除失败：' + e.message, 7000); }
++  } catch (e) { toast('Could not delete: ' + e.message, 7000); }
+ }
+ function renderCredDetail(t) {
+   const m = t.meta;
+   $('drawer').classList.add('open');
+-  $('dr-title').textContent = '凭证详情';
++  $('dr-title').textContent = 'Credential details';
+   let html = '';
+-  html += `<div class="kv"><b>凭证</b><code>${esc(t.token_masked)}</code></div>`;
+-  html += `<div class="kv"><b>类型</b>${t.kind === 'web-cookie' ? 'Web Cookie（网页版登录）' : 'Bearer Token'}</div>`;
+-  html += `<div class="kv"><b>来源</b>${esc(t.source || '—')}${t.host ? ' · ' + esc(t.host) : ''}</div>`;
+-  html += `<div class="kv"><b>入库时间</b>${t.added_at ? new Date(t.added_at).toLocaleString('zh-CN', { hour12: false }) : '未知（旧数据）'}</div>`;
++  html += `<div class="kv"><b>Credential</b><code>${esc(t.token_masked)}</code></div>`;
++  html += `<div class="kv"><b>Type</b>${t.kind === 'web-cookie' ? 'Web Cookie (browser sign-in)' : 'Bearer Token'}</div>`;
++  html += `<div class="kv"><b>Source</b>${esc(t.source || '—')}${t.host ? ' · ' + esc(t.host) : ''}</div>`;
++  html += `<div class="kv"><b>Added at</b>${t.added_at ? new Date(t.added_at).toLocaleString('en', { hour12: false }) : 'Unknown (older record)'}</div>`;
+   if (!m) {
+-    html += `<div class="empty" style="margin-top:12px">这条凭证还没检查过 —— 点凭证列表里的「检查」即可拉取账号详细信息。</div>`;
++    html += `<div class="empty" style="margin-top:12px">This credential has not been checked. Click Check in the credential list to load account details.</div>`;
+     $('dr-body').innerHTML = html;
+     return;
+   }
+-  html += `<div class="kv"><b>检查时间</b>${m.checked_at ? new Date(m.checked_at).toLocaleString('zh-CN', { hour12: false }) : '—'} ${m.valid ? badge('有效', 'ok') : badge('可能失效', 'err')}</div>`;
+-  html += '<div style="border-top:1px solid var(--border);margin:10px 0;padding-top:8px"><b>账号</b></div>';
++  html += `<div class="kv"><b>Checked at</b>${m.checked_at ? new Date(m.checked_at).toLocaleString('en', { hour12: false }) : '—'} ${m.valid ? badge('Valid', 'ok') : badge('Possibly expired', 'err')}</div>`;
++  html += '<div style="border-top:1px solid var(--border);margin:10px 0;padding-top:8px"><b>Account</b></div>';
+   if (m.image) html += `<img src="${esc(m.image)}" style="width:40px;height:40px;border-radius:50%;vertical-align:middle" onerror="this.style.display='none'">`;
+-  html += `<div class="kv"><b>昵称</b>${esc(m.name || '—')}</div>`;
+-  html += `<div class="kv"><b>邮箱</b>${esc(m.email || '—')}</div>`;
+-  if (m.user_id) html += `<div class="kv"><b>用户 ID</b><code>${esc(m.user_id)}</code></div>`;
+-  if (m.expires) html += `<div class="kv"><b>登录有效期</b>${new Date(m.expires).toLocaleString('zh-CN', { hour12: false })}</div>`;
+-  html += '<div style="border-top:1px solid var(--border);margin:10px 0;padding-top:8px"><b>额度</b></div>';
+-  html += `<div class="kv"><b>层级 / 套餐</b>${esc(m.access_tier || '—')} / ${esc(m.tier_id || '免费')}</div>`;
+-  if (m.daily_limit != null) html += `<div class="kv"><b>今日积分</b>剩余 <b class="tok">${m.daily_remaining ?? '—'}</b> / ${m.daily_limit}（已用 ${m.daily_spent ?? 0}）</div>`;
+-  if (m.reset_at) html += `<div class="kv"><b>下次重置</b>${new Date(m.reset_at).toLocaleString('zh-CN', { hour12: false })}</div>`;
+-  if (m.streak_current != null) html += `<div class="kv"><b>连续使用</b>${m.streak_current} 天（累计活跃 ${m.all_time_active_days ?? '—'} 天）</div>`;
+-  if (m.tokens_7d != null) html += `<div class="kv"><b>近 7 天 token</b>${m.tokens_7d.toLocaleString()}</div>`;
+-  if (m.country_code) html += `<div class="kv"><b>地区</b>${esc(m.country_code)}${m.country_block_reason ? ' ' + badge(m.country_block_reason, 'err') : ''}</div>`;
+-  if (m.error) html += `<div class="kv"><b>错误</b><span class="terr">${esc(m.error)}</span></div>`;
++  html += `<div class="kv"><b>Name</b>${esc(m.name || '—')}</div>`;
++  html += `<div class="kv"><b>Email</b>${esc(m.email || '—')}</div>`;
++  if (m.user_id) html += `<div class="kv"><b>User ID</b><code>${esc(m.user_id)}</code></div>`;
++  if (m.expires) html += `<div class="kv"><b>Session expiry</b>${new Date(m.expires).toLocaleString('en', { hour12: false })}</div>`;
++  html += '<div style="border-top:1px solid var(--border);margin:10px 0;padding-top:8px"><b>Quota</b></div>';
++  html += `<div class="kv"><b>Tier / Plan</b>${esc(m.access_tier || '—')} / ${esc(m.tier_id || 'Free')}</div>`;
++  if (m.daily_limit != null) html += `<div class="kv"><b>Daily credits</b>Remaining <b class="tok">${m.daily_remaining ?? '—'}</b> / ${m.daily_limit} (used ${m.daily_spent ?? 0})</div>`;
++  if (m.reset_at) html += `<div class="kv"><b>Next reset</b>${new Date(m.reset_at).toLocaleString('en', { hour12: false })}</div>`;
++  if (m.streak_current != null) html += `<div class="kv"><b>Usage streak</b>${m.streak_current} days (total active: ${m.all_time_active_days ?? '—'} days)</div>`;
++  if (m.tokens_7d != null) html += `<div class="kv"><b>Tokens over the last 7 days</b>${m.tokens_7d.toLocaleString()}</div>`;
++  if (m.country_code) html += `<div class="kv"><b>Region</b>${esc(m.country_code)}${m.country_block_reason ? ' ' + badge(m.country_block_reason, 'err') : ''}</div>`;
++  if (m.error) html += `<div class="kv"><b>Errors</b><span class="terr">${esc(m.error)}</span></div>`;
+   if ((m.models || []).length) {
+-    html += `<details open style="margin-top:8px"><summary>逐模型今日剩余（${m.models.length}）</summary><table style="margin-top:6px"><thead><tr><th>模型</th><th>剩余</th><th>限额</th><th>已用</th><th>积分价</th></tr></thead><tbody>${
+-      m.models.map(x => `<tr><td>${esc(x.model)}</td><td><b>${x.remaining ?? '—'}</b></td><td>${x.limit ?? '—'}</td><td>${x.used ?? 0}</td><td>${x.price === 0 ? '<b class="tok">免费</b>' : (x.price ?? '—')}</td></tr>`).join('')}</tbody></table></details>`;
++    html += `<details open style="margin-top:8px"><summary>Remaining today by model (${m.models.length})</summary><table style="margin-top:6px"><thead><tr><th>Model</th><th>Remaining</th><th>Limit</th><th>Used</th><th>Credit price</th></tr></thead><tbody>${
++      m.models.map(x => `<tr><td>${esc(x.model)}</td><td><b>${x.remaining ?? '—'}</b></td><td>${x.limit ?? '—'}</td><td>${x.used ?? 0}</td><td>${x.price === 0 ? '<b class="tok">Free</b>' : (x.price ?? '—')}</td></tr>`).join('')}</tbody></table></details>`;
+   }
+   $('dr-body').innerHTML = html;
+ }
+ 
+-// ---------- 使用记录 ----------
++
+ function fillHistoryCredOptions(list) {
+   const sel = $('hist-cred');
+   if (!sel) return;
+   const cur = sel.value;
+-  const opts = ['<option value="">全部账号</option>'].concat(
++  const opts = ['<option value="">All accounts</option>'].concat(
+     (list || []).map(t => {
+       const m = t.meta || {};
+       const label = m.email || m.name || t.token_masked;
+@@ -1026,7 +1013,7 @@ function fillHistoryCredOptions(list) {
+ async function loadHistory() {
+   const wrap = $('hist-wrap');
+   if (!wrap) return;
+-  wrap.innerHTML = '<div class="empty">加载中…</div>';
++  wrap.innerHTML = '<div class="empty">Loading…</div>';
+   try {
+     if (!tokenCache.length) { try { const r = await api('/api/tokens'); tokenCache = r.tokens || []; fillHistoryCredOptions(tokenCache); } catch (e) {} }
+     const cred = $('hist-cred') ? $('hist-cred').value : '';
+@@ -1034,121 +1021,125 @@ async function loadHistory() {
+     const d = await api(q);
+     const rows = d.records || [];
+     wrap.innerHTML = rows.length ? `<table><thead><tr>
+-        <th>时间</th><th>账号</th><th>套餐</th><th>今日剩余</th><th>已用</th><th>近 7 天 token</th><th>连续天数</th><th>结果</th>
++        <th>Time</th><th>Account</th><th>Plan</th><th>Remaining today</th><th>Used</th><th>Tokens over the last 7 days</th><th>Streak (days)</th><th>Result</th>
+       </tr></thead><tbody>${
+       rows.map(r => `<tr>
+-        <td style="font-size:12px">${new Date(r.ts).toLocaleString('zh-CN', { hour12: false })}</td>
++        <td style="font-size:12px">${new Date(r.ts).toLocaleString('en', { hour12: false })}</td>
+         <td>${esc(r.email || r.name || r.cred_id.slice(0, 8))}</td>
+-        <td>${esc(r.tier_id || '免费')}</td>
++        <td>${esc(r.tier_id || 'Free')}</td>
+         <td>${r.daily_remaining ?? '—'} / ${r.daily_limit ?? '—'}</td>
+         <td>${r.daily_spent ?? '—'}</td>
+         <td>${r.tokens_7d != null ? r.tokens_7d.toLocaleString() : '—'}</td>
+         <td>${r.streak_current ?? '—'}</td>
+-        <td>${r.ok ? badge('成功', 'ok') : badge('失败', 'err')}</td>
+-      </tr>`).join('')}</tbody></table>` : '<div class="empty">暂无记录 — 点「刷新账号全貌」或凭证行的「检查」即可产生记录</div>';
+-  } catch (e) { wrap.innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
++        <td>${r.ok ? badge('Success', 'ok') : badge('Failed', 'err')}</td>
++      </tr>`).join('')}</tbody></table>` : '<div class="empty">No history yet. Refresh account details or check a credential to save a snapshot.</div>';
++  } catch (e) { wrap.innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; }
+ }
+ 
+-// ---------- 账号全貌（中文呈现上游数据） ----------
++
+ async function refreshAccountOverview() {
+-  $('overview-wrap').innerHTML = '<div class="empty">拉取中…（上游可能需要几秒）</div>';
++  $('overview-wrap').innerHTML = '<div class="empty">Loading… The upstream service may take a few seconds.</div>';
+   try {
+     const d = await api('/api/account/overview');
+     $('overview-wrap').innerHTML = renderOverview(d);
+   } catch (e) {
+     const m = String(e.message || '');
+-    $('overview-wrap').innerHTML = `<div class="empty">拉取失败：${esc(m)}${m.includes('Cookie') ? ' — 请先在上方导入凭证' : ''}</div>`;
++    $('overview-wrap').innerHTML = `<div class="empty">Could not fetch: ${esc(m)}${m.includes('Cookie') ? ' — Import credentials above first' : ''}</div>`;
+   }
+ }
+ function renderOverview(d) {
+   const id = (d.identity && d.identity.user) || {};
+   let html = '';
+-  // 身份
++
+   html += '<div class="row" style="gap:12px;margin-bottom:14px">';
+   if (id.image) html += `<img src="${esc(id.image)}" style="width:44px;height:44px;border-radius:50%" onerror="this.style.display='none'">`;
+-  html += `<div><div style="font-size:16px;font-weight:600">${esc(id.name || '未命名账号')}</div>
+-    <div style="font-size:12px;color:var(--muted)">${esc(id.email || '')}${id.id ? ' · 用户 ID ' + esc(String(id.id).slice(0, 8)) + '…' : ''}</div></div>`;
+-  if (d.identity && d.identity.expires) html += `<span style="flex:1"></span><span style="font-size:12px;color:var(--muted)">凭证有效期至 ${new Date(d.identity.expires).toLocaleString('zh-CN', { hour12: false })}</span>`;
++  html += `<div><div style="font-size:16px;font-weight:600">${esc(id.name || 'Unnamed account')}</div>
++    <div style="font-size:12px;color:var(--muted)">${esc(id.email || '')}${id.id ? ' · User ID ' + esc(String(id.id).slice(0, 8)) + '…' : ''}</div></div>`;
++  if (d.identity && d.identity.expires) html += `<span style="flex:1"></span><span style="font-size:12px;color:var(--muted)">Credentials expire ${new Date(d.identity.expires).toLocaleString('en', { hour12: false })}</span>`;
+   html += '</div>';
+ 
+-  // 使用统计（中文）
++
+   const u = d.usage || {};
+   if (u.streak || u.recent) {
+-    html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:4px"><b style="font-size:14px">📊 使用统计</b></div>';
+-    if (u.streak) html += `<p style="font-size:13px;margin-top:6px">🔥 连续使用 <b class="tok">${u.streak.current ?? 0}</b> 天（最长 ${u.streak.longest ?? 0} 天） · 累计活跃 <b>${u.allTimeActiveDays ?? 0}</b> 天</p>`;
++    html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-bottom:4px"><b style="font-size:14px">📊 Usage statistics</b></div>';
++    if (u.streak) html += `<p style="font-size:13px;margin-top:6px">🔥 Usage streak <b class="tok">${u.streak.current ?? 0}</b> days (longest: ${u.streak.longest ?? 0} days) · Total active <b>${u.allTimeActiveDays ?? 0}</b> days</p>`;
+     const r = u.recent || {};
+-    if (r.totalTokens != null) html += `<p style="font-size:13px;color:var(--muted);margin-top:4px">近 ${r.days ?? 7} 天：<b>${r.messages ?? 0}</b> 条消息 · 输入 <b>${(r.inputTokens || 0).toLocaleString()}</b> · 输出 <b>${(r.outputTokens || 0).toLocaleString()}</b> · 缓存 <b>${(r.cacheReadTokens || 0).toLocaleString()}</b> · 合计 <b>${(r.totalTokens || 0).toLocaleString()}</b> tokens</p>`;
++    if (r.totalTokens != null) html += `<p style="font-size:13px;color:var(--muted);margin-top:4px">Last ${r.days ?? 7} days: <b>${r.messages ?? 0}</b> messages · Input <b>${(r.inputTokens || 0).toLocaleString()}</b> · Output <b>${(r.outputTokens || 0).toLocaleString()}</b> · Cache <b>${(r.cacheReadTokens || 0).toLocaleString()}</b> · Total <b>${(r.totalTokens || 0).toLocaleString()}</b> tokens</p>`;
+     if ((u.sessionsByModel || []).length) {
+-      html += `<table style="margin-top:8px"><thead><tr><th>模型</th><th>会话数</th><th>消耗单位</th></tr></thead><tbody>${u.sessionsByModel.map(m => `<tr><td>${esc(m.model)}</td><td>${m.sessions}</td><td>${m.units}</td></tr>`).join('')}</tbody></table>`;
++      html += `<table style="margin-top:8px"><thead><tr><th>Model</th><th>Sessions</th><th>Units used</th></tr></thead><tbody>${u.sessionsByModel.map(m => `<tr><td>${esc(m.model)}</td><td>${m.sessions}</td><td>${m.units}</td></tr>`).join('')}</tbody></table>`;
+     }
+   }
+ 
+-  // 今日额度
++
+   const q = d.quota || {};
+   const fb = q.freebucks || {};
+   const daily = fb.daily || {};
+   const tierId = (d.subscription && d.subscription.subscription && d.subscription.subscription.tierId) || null;
+-  html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px"><b style="font-size:14px">💰 今日额度</b></div>';
+-  html += `<p style="font-size:13px;margin-top:6px">账号层级 <b>${esc(q.accessTier || '—')}</b> · 订阅套餐 <b>${esc(tierId || '免费')}</b></p>`;
++  html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px"><b style="font-size:14px">💰 Daily quota</b></div>';
++  html += `<p style="font-size:13px;margin-top:6px">Account tier <b>${esc(q.accessTier || '—')}</b> · Subscription plan <b>${esc(tierId || 'Free')}</b></p>`;
+   if (daily.limit != null) {
+     const pct = daily.limit > 0 ? Math.round(((daily.remaining || 0) / daily.limit) * 100) : 0;
+-    const reset = daily.resetAt ? new Date(daily.resetAt).toLocaleString('zh-CN', { hour12: false }) : '—';
+-    html += `<p style="font-size:13px;margin-top:4px">积分：剩余 <b class="tok">${daily.remaining ?? '—'}</b> / ${daily.limit ?? '—'}（已用 ${daily.spent ?? 0}） · 重置 <b>${reset}</b> <span style="color:var(--muted)">（太平洋时间午夜，隔天自动刷新）</span></p>`;
++    const reset = daily.resetAt ? new Date(daily.resetAt).toLocaleString('en', { hour12: false }) : '—';
++    html += `<p style="font-size:13px;margin-top:4px">Credits: Remaining <b class="tok">${daily.remaining ?? '—'}</b> / ${daily.limit ?? '—'} (used ${daily.spent ?? 0}) · Reset <b>${reset}</b> <span style="color:var(--muted)">(resets daily at midnight Pacific time)</span></p>`;
+     html += `<div style="height:8px;background:#21262d;border-radius:4px;overflow:hidden;margin:8px 0 10px"><div style="height:100%;width:${pct}%;background:${pct > 50 ? 'var(--ok)' : pct > 20 ? 'var(--warn)' : 'var(--err)'}"></div></div>`;
+   }
+   const prices = fb.prices || {};
+   const rl = q.rateLimitsByModel || {};
+   const models = Object.keys(rl);
+   if (models.length) {
+-    html += `<table><thead><tr><th>模型</th><th>今日剩余次数</th><th>限额</th><th>已用</th><th>积分价</th><th>下次重置</th></tr></thead><tbody>${
++    html += `<table><thead><tr><th>Model</th><th>Requests remaining today</th><th>Limit</th><th>Used</th><th>Credit price</th><th>Next reset</th></tr></thead><tbody>${
+       models.map(m => {
+         const v = rl[m] || {};
+         const remain = v.limit != null ? Math.max(0, (v.limit || 0) - (v.recentCount || 0)) : '—';
+-        const price = prices[m] != null ? (prices[m] === 0 ? '<b class="tok">免费</b>' : prices[m]) : '—';
+-        const reset = v.resetAt ? new Date(v.resetAt).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
++        const price = prices[m] != null ? (prices[m] === 0 ? '<b class="tok">Free</b>' : prices[m]) : '—';
++        const reset = v.resetAt ? new Date(v.resetAt).toLocaleString('en', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+         const pool = v.poolLabel ? ` <span style="color:var(--muted);font-size:11px">${esc(v.poolLabel)}</span>` : '';
+         return `<tr><td>${esc(m)}${pool}</td><td><b>${remain}</b></td><td>${v.limit ?? '—'}</td><td>${v.recentCount ?? 0}</td><td>${price}</td><td style="font-size:12px">${reset}</td></tr>`;
+       }).join('')}</tbody></table>`;
+   }
+   const extra = Object.entries(prices).filter(([m]) => !rl[m]);
+   if (extra.length) {
+-    html += `<details style="margin-top:8px"><summary>其他模型积分价（${extra.length}）</summary><div style="margin-top:6px">${extra.map(([m, p]) => `<span class="chip">${esc(m)}: ${p === 0 ? '免费' : p}</span>`).join('')}</div></details>`;
++    html += `<details style="margin-top:8px"><summary>Credit prices for other models (${extra.length})</summary><div style="margin-top:6px">${extra.map(([m, p]) => `<span class="chip">${esc(m)}: ${p === 0 ? 'Free' : p}</span>`).join('')}</div></details>`;
+   }
+ 
+-  // 凭证与刷新时间
++
+   const c = d.credential || {};
+-  html += `<div style="font-size:12px;color:var(--muted);margin-top:12px;border-top:1px solid var(--border);padding-top:8px">当前凭证 ${esc(c.token_masked || '')} · 来源 ${esc(c.source || '')}${c.added_at ? ' · 入库 ' + new Date(c.added_at).toLocaleString('zh-CN', { hour12: false }) : ''} · 数据更新于 ${d.fetched_at ? new Date(d.fetched_at).toLocaleTimeString('zh-CN', { hour12: false }) : '—'}</div>`;
++  html += `<div style="font-size:12px;color:var(--muted);margin-top:12px;border-top:1px solid var(--border);padding-top:8px">Current credential ${esc(c.token_masked || '')} · Source ${esc(c.source || '')}${c.added_at ? ' · Added ' + new Date(c.added_at).toLocaleString('en', { hour12: false }) : ''} · Updated at ${d.fetched_at ? new Date(d.fetched_at).toLocaleTimeString('en', { hour12: false }) : '—'}</div>`;
+   return html;
+ }
+ async function refreshCredential() {
+-  toast('正在做凭证保活检查…');
++  toast('Checking credential freshness…');
+   try {
+     const r = await api('/api/account/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+-    toast(r.message || (r.ok ? '凭证有效' : '凭证可能已失效'), 7000);
++    toast(r.message || (r.ok ? 'Credential valid' : 'Credential may have expired'), 7000);
+     if (r.ok) refreshAccountOverview();
+-  } catch (e) { toast('检查失败：' + e.message, 6000); }
++  } catch (e) { toast('Check failed: ' + e.message, 6000); }
+ }
+ 
+-// ---------- 技能 ----------
++
+ let editingSkillId = null;
+-let skillsCache = [];   // 索引化引用，避免把用户数据拼进内联 JS（防 XSS/引号破坏）
++let skillsCache = [];
++function skillDisplayName(skill) {
++  const names = { 'git-guru': 'Git expert', 'docker-deploy': 'Docker deployment', 'api-designer': 'API design', 'perf-tuner': 'Performance tuning', 'refactor-clean': 'Refactoring', 'skill-author': 'Skill authoring' };
++  return skill.builtin ? (names[skill.id] || skill.name) : skill.name;
++}
+ async function refreshSkills() {
+   try {
+     const d = await api('/api/skills');
+     const skills = d.skills || [];
+     skillsCache = skills;
+-    $('roster-info').textContent = `roster 预览约 ${d.roster_tokens ?? '—'} tokens（注入预算 ${d.max_roster_tokens ?? 2000}）`;
+-    $('skills-wrap').innerHTML = skills.length ? `<table><thead><tr><th>名称</th><th>描述</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody>${
++    $('roster-info').textContent = `Roster preview: about ${d.roster_tokens ?? '—'} tokens (budget: ${d.max_roster_tokens ?? 2000})`;
++    $('skills-wrap').innerHTML = skills.length ? `<table><thead><tr><th>Name</th><th>Description</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+       skills.map((s, i) => `<tr>
+-        <td>${esc(s.name)} ${s.builtin ? badge('内置', 'dim') : ''}</td>
++        <td>${esc(skillDisplayName(s))} ${s.builtin ? badge('Built-in', 'dim') : ''}</td>
+         <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(s.description)}">${esc(s.description)}</td>
+         <td>${esc(s.source || 'local')}</td>
+-        <td>${s.enabled ? badge('已启用', 'ok') : badge('已禁用', 'dim')}</td>
++        <td>${s.enabled ? badge('Enabled', 'ok') : badge('Disabled', 'dim')}</td>
+         <td class="row">
+-          <button class="ghost sm" onclick="toggleSkillAt(${i})">${s.enabled ? '禁用' : '启用'}</button>
+-          ${s.builtin ? '<span style="color:var(--muted);font-size:12px">内置项不可编辑</span>' : `<button class="ghost sm" onclick="editSkillAt(${i})">编辑</button><button class="ghost sm" onclick="delSkillAt(${i})">删除</button>`}
+-        </td></tr>`).join('')}</tbody></table>` : '<div class="empty">技能库为空（内置技能会在首次启动时自动写入）</div>';
+-  } catch (e) { $('skills-wrap').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
++          <button class="ghost sm" onclick="toggleSkillAt(${i})">${s.enabled ? 'Disable' : 'Enable'}</button>
++          ${s.builtin ? '<span style="color:var(--muted);font-size:12px">Built-in items cannot be edited</span>' : `<button class="ghost sm" onclick="editSkillAt(${i})">Edit</button><button class="ghost sm" onclick="delSkillAt(${i})">Delete</button>`}
++        </td></tr>`).join('')}</tbody></table>` : '<div class="empty">No skills yet. Built-in skills are created on first launch.</div>';
++  } catch (e) { $('skills-wrap').innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; }
+ }
+ function toggleSkillAt(i) { const s = skillsCache[i]; if (s) toggleSkill(s.id, !s.enabled); }
+ function delSkillAt(i) { const s = skillsCache[i]; if (s) delSkill(s.id); }
+@@ -1156,14 +1147,14 @@ function editSkillAt(i) {
+   const s = skillsCache[i];
+   if (!s) return;
+   editingSkillId = s.id;
+-  $('skill-editor-title').textContent = '编辑技能：' + s.name;
++  $('skill-editor-title').textContent = 'Edit skill: ' + skillDisplayName(s);
+   $('sk-name').value = s.name; $('sk-desc').value = s.description; $('sk-body').value = s.body || '';
+   $('skill-editor').style.display = '';
+   $('gate-result').textContent = '';
+ }
+ function newSkill() {
+   editingSkillId = null;
+-  $('skill-editor-title').textContent = '新建技能';
++  $('skill-editor-title').textContent = 'New skill';
+   $('sk-name').value = ''; $('sk-desc').value = ''; $('sk-body').value = '';
+   $('skill-editor').style.display = '';
+   $('gate-result').textContent = '';
+@@ -1171,45 +1162,45 @@ function newSkill() {
+ function editSkill(jsonStr) {
+   const s = JSON.parse(jsonStr);
+   editingSkillId = s.id;
+-  $('skill-editor-title').textContent = '编辑技能：' + s.name + (s.builtin ? '（内置，仅可改正文）' : '');
++  $('skill-editor-title').textContent = 'Edit skill: ' + skillDisplayName(s) + (s.builtin ? ' (built-in; instructions only)' : '');
+   $('sk-name').value = s.name; $('sk-desc').value = s.description; $('sk-body').value = s.body || '';
+   $('skill-editor').style.display = '';
+ }
+ async function saveSkill() {
+   const name = $('sk-name').value.trim(), desc = $('sk-desc').value.trim(), body = $('sk-body').value;
+-  if (!name || !desc) { toast('名称和描述不能为空'); return; }
++  if (!name || !desc) { toast('Name and description are required'); return; }
+   let force = false;
+   try {
+-    // 保存前质量门：有问题先提示，用户确认后 force 保存
++
+     const g = await api('/api/skills/gate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ body: name + '\n' + desc + '\n' + body }) });
+     const issues = g.issues || [];
+     if (issues.length) {
+-      $('gate-result').innerHTML = '<span class="terr">质量门发现问题：</span><br>' + issues.map(x => '• ' + esc(x)).join('<br>');
+-      if (!confirm('质量门发现 ' + issues.length + ' 个问题：\n\n' + issues.join('\n') + '\n\n仍要强制保存吗？')) return;
++      $('gate-result').innerHTML = '<span class="terr">Quality check found issues: </span><br>' + issues.map(x => '• ' + esc(x)).join('<br>');
++      if (!confirm('Quality check found ' + issues.length + ' issues:\n\n' + issues.join('\n') + '\n\nSave anyway?')) return;
+       force = true;
+     } else {
+-      $('gate-result').textContent = '质量门通过 ✅';
++      $('gate-result').textContent = 'Quality check passed ✅';
+     }
+     await api('/api/skills', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: editingSkillId, name, description: desc, body, force }) });
+-    $('skill-save-result').textContent = '✅ 已保存';
++    $('skill-save-result').textContent = '✅ Saved';
+     $('skill-editor').style.display = 'none';
+     refreshSkills();
+-  } catch (e) { $('skill-save-result').innerHTML = `<span class="terr">保存失败：${esc(e.message)}</span>`; }
++  } catch (e) { $('skill-save-result').innerHTML = `<span class="terr">Could not save: ${esc(e.message)}</span>`; }
+ }
+ async function toggleSkill(id, enabled) {
+   try { await api('/api/skills/toggle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, enabled }) }); refreshSkills(); }
+-  catch (e) { toast('操作失败: ' + e.message); }
++  catch (e) { toast('Action failed: ' + e.message); }
+ }
+ async function delSkill(id) {
+-  if (!confirm('确定删除这个技能？')) return;
++  if (!confirm('Delete this skill?')) return;
+   try { await api('/api/skills/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }); refreshSkills(); }
+-  catch (e) { toast('删除失败: ' + e.message); }
++  catch (e) { toast('Could not delete: ' + e.message); }
+ }
+ 
+-// ---------- 记忆 ----------
++
+ let memCache = [];
+ let memEnabled = false;
+-function kindLabel(k) { return ({ preference: '偏好', correction: '纠正', habit: '习惯', project: '项目', feedback: '反馈' })[k] || k; }
++function kindLabel(k) { return ({ preference: 'Preference', correction: 'Correction', habit: 'Habit', project: 'Project', feedback: 'Feedback' })[k] || k; }
+ async function refreshMemory() {
+   try {
+     const d = await api('/api/memory');
+@@ -1217,22 +1208,22 @@ async function refreshMemory() {
+     memEnabled = !!d.enabled;
+     const t = $('mem-toggle');
+     if (t.checked !== memEnabled) t.checked = memEnabled;
+-    $('mem-toggle-state').textContent = memEnabled ? '已开启' : '已关闭（默认）';
++    $('mem-toggle-state').textContent = memEnabled ? 'Enabled' : 'Disabled (default)';
+     $('mem-toggle-state').style.color = memEnabled ? 'var(--ok)' : 'var(--muted)';
+-    $('mem-stats').innerHTML = `共 <b>${s.total ?? 0}</b> 条 · 稳定事实 ${s.static_count ?? 0} · 纠正 ${s.corrections ?? 0}`;
++    $('mem-stats').innerHTML = `Total <b>${s.total ?? 0}</b> entries · Stable facts ${s.static_count ?? 0} · Corrections ${s.corrections ?? 0}`;
+     const items = d.memories || [];
+     memCache = items;
+-    $('mem-wrap').innerHTML = items.length ? `<table><thead><tr><th>类型</th><th>标题</th><th>内容</th><th>状态</th><th>操作</th></tr></thead><tbody>${
++    $('mem-wrap').innerHTML = items.length ? `<table><thead><tr><th>Type</th><th>Title</th><th>Content</th><th>Status</th><th>Actions</th></tr></thead><tbody>${
+       items.map((m, i) => `<tr>
+         <td>${esc(kindLabel(m.kind))}</td>
+         <td>${esc(m.title)}</td>
+         <td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(m.content)}">${esc(m.content)}</td>
+-        <td>${m.is_static ? badge('稳定', 'ok') : badge('近期', 'dim')}</td>
++        <td>${m.is_static ? badge('Stable', 'ok') : badge('Recent', 'dim')}</td>
+         <td class="row">
+-          <button class="ghost sm" onclick="toggleMemStaticAt(${i})">${m.is_static ? '转近期' : '转稳定'}</button>
+-          <button class="ghost sm" onclick="delMemAt(${i})">删除</button>
+-        </td></tr>`).join('')}</tbody></table>` : '<div class="empty">还没有记忆 — 正常使用即可自动积累，或点「手动添加」</div>';
+-  } catch (e) { $('mem-wrap').innerHTML = `<div class="empty">加载失败：${esc(e.message)}</div>`; }
++          <button class="ghost sm" onclick="toggleMemStaticAt(${i})">${m.is_static ? 'Mark recent' : 'Mark stable'}</button>
++          <button class="ghost sm" onclick="delMemAt(${i})">Delete</button>
++        </td></tr>`).join('')}</tbody></table>` : '<div class="empty">No memories yet. Enable memory to collect them during use, or click Add manually.</div>';
++  } catch (e) { $('mem-wrap').innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`; }
+ }
+ async function toggleMemoryEnabled() {
+   const t = $('mem-toggle');
+@@ -1242,12 +1233,12 @@ async function toggleMemoryEnabled() {
+     const r = await api('/api/memory/toggle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: target }) });
+     memEnabled = !!(r && r.enabled !== undefined ? r.enabled : target);
+     if (t.checked !== memEnabled) t.checked = memEnabled;
+-    $('mem-toggle-state').textContent = memEnabled ? '已开启' : '已关闭（默认）';
++    $('mem-toggle-state').textContent = memEnabled ? 'Enabled' : 'Disabled (default)';
+     $('mem-toggle-state').style.color = memEnabled ? 'var(--ok)' : 'var(--muted)';
+-    toast((r && r.message) || (memEnabled ? '记忆层已开启' : '记忆层已关闭'), 5000);
++    toast((r && r.message) || (memEnabled ? 'Memory enabled' : 'Memory disabled'), 5000);
+   } catch (e) {
+-    t.checked = memEnabled; // 失败回滚
+-    toast('切换失败：' + e.message);
++    t.checked = memEnabled;
++    toast('Could not change setting: ' + e.message);
+   } finally { t.disabled = false; }
+ }
+ function newMemory() {
+@@ -1256,27 +1247,27 @@ function newMemory() {
+ }
+ async function saveMemory() {
+   const title = $('mem-title').value.trim(), content = $('mem-content').value.trim(), kind = $('mem-kind').value;
+-  if (!title || !content) { toast('标题和内容不能为空'); return; }
++  if (!title || !content) { toast('Title and content are required'); return; }
+   try {
+     await api('/api/memory', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, title, content, is_static: false }) });
+-    $('mem-save-result').textContent = '✅ 已保存';
++    $('mem-save-result').textContent = '✅ Saved';
+     $('mem-editor').style.display = 'none';
+     refreshMemory();
+-  } catch (e) { $('mem-save-result').innerHTML = `<span class="terr">保存失败：${esc(e.message)}</span>`; }
++  } catch (e) { $('mem-save-result').innerHTML = `<span class="terr">Could not save: ${esc(e.message)}</span>`; }
+ }
+ function toggleMemStaticAt(i) { const m = memCache[i]; if (m) setMemStatic(m.id, !m.is_static); }
+ function delMemAt(i) { const m = memCache[i]; if (m) delMemory(m.id); }
+ async function setMemStatic(id, v) {
+   try { await api('/api/memory/static', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, is_static: v }) }); refreshMemory(); }
+-  catch (e) { toast('操作失败: ' + e.message); }
++  catch (e) { toast('Action failed: ' + e.message); }
+ }
+ async function delMemory(id) {
+-  if (!confirm('删除这条记忆？')) return;
++  if (!confirm('Delete this memory?')) return;
+   try { await api('/api/memory/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) }); refreshMemory(); }
+-  catch (e) { toast('删除失败: ' + e.message); }
++  catch (e) { toast('Could not delete: ' + e.message); }
+ }
+ 
+-// ---------- 日志 ----------
++
+ let logEvents = [];
+ let logSource = null;
+ async function initLogs() {
+@@ -1289,40 +1280,40 @@ async function initLogs() {
+     logSource.onmessage = (e) => {
+       try { const ev = JSON.parse(e.data); logEvents.push(ev); if (logEvents.length > 500) logEvents = logEvents.slice(-500); renderLogs(); } catch (err) {}
+     };
+-    logSource.onerror = () => { /* 自动重连由浏览器处理 */ };
+-  } catch (e) { $('logbox').innerHTML = `<div class="empty">日志加载失败：${esc(e.message)}</div>`; }
++    logSource.onerror = () => {  };
++  } catch (e) { $('logbox').innerHTML = `<div class="empty">Could not load logs: ${esc(e.message)}</div>`; }
+ }
+ function renderLogs() {
+   const filter = $('log-filter')?.value || '';
+   const list = logEvents.filter(e => !filter || e.level === filter).slice(-300);
+   $('logbox').innerHTML = list.length ? list.map(e =>
+     `<div class="lv-${esc(e.level)}">[${fmtTime(e.ts)}] ${esc(e.level).toUpperCase()} ${esc(e.kind)}${e.req_id ? ' #' + esc(e.req_id) : ''} — ${esc(e.message)}</div>`
+-  ).join('') : '<div class="empty">暂无日志</div>';
++  ).join('') : '<div class="empty">No logs yet</div>';
+   const box = $('logbox'); box.scrollTop = box.scrollHeight;
+ }
+ function clearLogs() { logEvents = []; renderLogs(); }
+ 
+-// ---------- 体检 ----------
++
+ async function refreshDoctor() {
+-  $('doctor-wrap').innerHTML = '<div class="empty">检查中…</div>';
++  $('doctor-wrap').innerHTML = '<div class="empty">Checking…</div>';
+   try {
+     const d = await api('/api/doctor');
+     const checks = d.checks || [];
+     const icon = (s) => s === 'ok' ? '<span class="tok">✅ ok</span>' : s === 'fault' ? '<span class="terr">❌ fault</span>' : s === 'fact' ? '<span class="twarn">ℹ️ fact</span>' : '<span style="color:var(--muted)">◻ not checked</span>';
+     $('doctor-wrap').innerHTML = checks.map(c => `<div class="doctor-item"><div class="st">${icon(c.state)}</div><div style="flex:1"><b>${esc(c.label)}</b><div style="color:var(--muted);margin-top:2px">${esc(c.detail)}</div>${c.fix ? `<div style="color:var(--accent);margin-top:2px">→ ${esc(c.fix)}</div>` : ''}</div></div>`).join('');
+-  } catch (e) { $('doctor-wrap').innerHTML = `<div class="empty">体检失败：${esc(e.message)}</div>`; }
++  } catch (e) { $('doctor-wrap').innerHTML = `<div class="empty">Diagnostics failed: ${esc(e.message)}</div>`; }
+ }
+ 
+-// ---------- 启动 ----------
++
+ refreshOverview();
+ loadGuide();
+-// 扩展可能在页面加载后才被激活，启动后多探几次（最多 5 次，探测到即停）
++
+ renderExtStatus();
+ (() => {
+   let tries = 0;
+   const t = setInterval(() => { pingExtension(); if (++tries >= 5 || extId) clearInterval(t); }, 2000);
+ })();
+-// hash 路由：托盘「系统体检」→ /#doctor
++
+ if (location.hash === '#doctor') showTab('doctor');
+ startOverviewTimer();
+ </script>

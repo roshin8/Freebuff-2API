@@ -670,6 +670,65 @@ git commit -m "test: verify packaged macOS application"
 
 ---
 
+### Task 10A: Localize the packaged dashboard to English
+
+**Files:**
+- Create: `patches/upstream-v0.7.3/english-dashboard.patch`
+- Create: `desktop/test/english-dashboard.test.js`
+- Modify: `scripts/prepare-gateway.js`
+- Modify: `desktop/test/prepare-gateway.test.js`
+- Modify: `scripts/smoke-app.sh`
+- Modify: `README.md`
+- Modify: `docs/DEVELOPMENT.md`
+- Modify: `docs/UPDATING-UPSTREAM.md`
+
+**Interfaces:**
+- Consumes: the exact verified upstream v0.7.3 checkout
+- Produces: an auditable, idempotently applied source patch before Cargo builds
+- Produces: a packaged `/ui` dashboard whose delivered HTML has no Han-script UI copy
+
+- [ ] **Step 1: Add failing localization and preparation-contract tests**
+
+Require the maintained patch to apply cleanly to the exact pinned source, require
+preparation to recognize both a clean checkout and an already-applied patch, and
+require the dashboard HTML served by the patched gateway to contain English title,
+navigation, onboarding, account, skill, memory, log, diagnostics, and client setup
+copy with no Han-script characters. Comments and tests outside the delivered HTML
+are not part of this UI assertion.
+
+- [ ] **Step 2: Run focused tests and confirm RED**
+
+Run: `node --test desktop/test/prepare-gateway.test.js desktop/test/english-dashboard.test.js`
+
+Expected: FAIL because the English patch and application contract do not exist.
+
+- [ ] **Step 3: Implement the audited upstream patch path**
+
+Translate all user-visible static and runtime-generated text inside the pinned
+gateway's dashboard HTML to natural English. Keep endpoints, JSON field names,
+storage formats, and behavior unchanged. `prepare-gateway.js` must verify the exact
+checkout SHA before applying the versioned patch; apply it once on a clean checkout,
+accept an already-applied patch idempotently, and reject a patch that applies in
+neither direction. Do not silently rewrite unrelated upstream files.
+
+- [ ] **Step 4: Rebuild and verify the real packaged experience**
+
+Run the upstream Rust tests, full wrapper tests, workflow verifier, unsigned arm64
+package, bundle inspection, and `scripts/smoke-app.sh`. The smoke must require the
+renderer title and fetched `/ui` HTML to be English and reject Han-script UI copy.
+
+- [ ] **Step 5: Document and commit**
+
+Document that releases contain the pinned upstream plus the audited English UI
+patch, and require reviewing/regenerating the patch during an upstream update.
+
+```bash
+git add patches scripts/prepare-gateway.js scripts/smoke-app.sh desktop/test README.md docs
+git commit -m "feat: localize bundled dashboard to English"
+```
+
+---
+
 ### Task 11: Publish the independent repository and first release
 
 **Files:**

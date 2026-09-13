@@ -46,12 +46,21 @@ updates. The wrapper currently pins upstream `v0.7.3` at
    still names the same upstream; changing it requires corresponding validator,
    workflow-contract, test, and documentation changes in the reviewed pull
    request.
+
+   Review and regenerate the versioned English UI patch and its integrity
+   manifest for the new pin. Audit every added/changed dashboard string, including
+   generated JavaScript views and API diagnostics/validation messages. Preserve
+   endpoint paths, JSON field names, IDs, matching rules, and user content. Update
+   the preparation patch path and integration-test expectations together. Record
+   the original and patched SHA-256 of each touched file and the exact commit in
+   the patch manifest. Verify clean application, idempotent repeated preparation,
+   and rejection of drift before building a release.
 4. Run the selected upstream checkout's locked Rust tests, then prepare and
    test the wrapper:
 
    ```bash
-   cargo test --locked --manifest-path "$FREEBUFF_UPSTREAM_DIR/Cargo.toml"
    npm run prepare:gateway --prefix desktop
+   cargo test --locked --manifest-path "$FREEBUFF_UPSTREAM_DIR/Cargo.toml"
    npm test --prefix desktop
    node scripts/verify-workflows.js
    ```
@@ -61,6 +70,7 @@ updates. The wrapper currently pins upstream `v0.7.3` at
    ```bash
    CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac --prefix desktop -- --arm64
    APP_PATH="$PWD/desktop/dist/mac-arm64/Freebuff2API.app" EXPECTED_ARCH=arm64 node scripts/smoke-bundle.js
+   scripts/smoke-app.sh "$PWD/desktop/dist/mac-arm64/Freebuff2API.app"
    shasum -a 256 desktop/dist/Freebuff2API-0.1.0-arm64.dmg desktop/dist/Freebuff2API-0.1.0-arm64.zip
    ```
 

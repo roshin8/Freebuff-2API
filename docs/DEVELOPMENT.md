@@ -17,10 +17,19 @@ export FREEBUFF_UPSTREAM_DIR="$PWD/../Freebuff-2API-upstream"
 
 `FREEBUFF_UPSTREAM_DIR` must be an absolute path. The manifest loader accepts
 only the expected upstream repository format and a syntactically valid tag, and
-the preparation script checks only that the checkout's `HEAD` equals the
-manifest `commit` before it builds or copies a gateway binary. It does not
+the preparation script checks that the checkout's `HEAD` equals the
+manifest `commit` before applying the versioned English dashboard patch or
+building a gateway binary. It does not
 inspect the checkout's remote origin or verify that the manifest tag resolves
 to that commit; perform those checks when updating the pin.
+
+Preparation then verifies SHA-256 hashes of every patched source file against
+`patches/upstream-v0.7.3/manifest.json`. It accepts either the clean pinned files
+or the exact already-patched files, checks patch applicability in the appropriate
+direction, and rejects source drift or a partially applied patch. Only the files
+listed in the patch are modified. Keep unrelated upstream changes out of release
+build checkouts. Repeating preparation is safe; to start over, use a fresh external
+checkout rather than discarding edits in an existing one.
 
 ## Install, prepare, and test
 
@@ -69,3 +78,15 @@ shasum -a 256 desktop/dist/Freebuff2API-0.1.0-arm64.dmg desktop/dist/Freebuff2AP
 The build deliberately disables signing discovery. Build on an Intel Mac with
 `--x64` when validating the Intel artifact; the CI release matrix builds both
 native architectures.
+
+Run the packaged application smoke test with an isolated temporary profile:
+
+```bash
+scripts/smoke-app.sh "$PWD/desktop/dist/mac-arm64/Freebuff2API.app"
+```
+
+This checks the English `/ui` HTML, renderer title, diagnostics, cost and validation
+messages, gateway recovery, and clean shutdown. The fetched HTML must contain no
+Han-script characters. Keep `FREEBUFF_UPSTREAM_DIR` exported when running Node
+tests so the exact-source patch integration test runs; without a checkout, that
+integration test is skipped while the synthetic preparation tests still run.
