@@ -61,8 +61,11 @@ login-related local state under:
 ~/Library/Application Support/Freebuff2API
 ```
 
-The configuration file is `config.yaml`; gateway logs are in `logs/`. You can
-also open the configuration, logs, or data directory from the tray menu.
+The configuration file is `config.yaml`, containing JSON as required by the
+pinned gateway. Existing YAML settings are converted to JSON on startup;
+values are preserved, but YAML comments and formatting are not. Gateway logs
+are in `logs/`. You can also open the configuration, logs, or data directory
+from the tray menu.
 
 ## Uninstall
 

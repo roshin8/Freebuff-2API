@@ -1,7 +1,34 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const { GatewayManager, RestartWindow } = require('../gateway');
 const { createGatewayFixture } = require('./fixtures/fake-gateway');
+
+test('writes configuration that the upstream JSON parser can consume', async (t) => {
+  const fixture = await createGatewayFixture();
+  t.after(fixture.cleanup);
+  const manager = new GatewayManager(fixture.options);
+  manager.ensureConfig();
+
+  const config = JSON.parse(fs.readFileSync(manager.configPath, 'utf8'));
+  assert.equal(config.listen_addr, `127.0.0.1:${fixture.port}`);
+  assert.deepEqual(config.auth_tokens, []);
+  assert.equal(fs.statSync(manager.configPath).mode & 0o777, 0o600);
+});
+
+test('normalizes existing YAML for upstream without losing custom settings', async (t) => {
+  const fixture = await createGatewayFixture();
+  t.after(fixture.cleanup);
+  const manager = new GatewayManager(fixture.options);
+  fs.mkdirSync(manager.userDataDir, { recursive: true });
+  fs.writeFileSync(manager.configPath, 'listen_addr: 127.0.0.1:47999\napi_keys: [test-only-key]\nmemory_enabled: false\n', { mode: 0o600 });
+  manager.ensureConfig();
+
+  assert.deepEqual(JSON.parse(fs.readFileSync(manager.configPath, 'utf8')), {
+    listen_addr: '127.0.0.1:47999', api_keys: ['test-only-key'], memory_enabled: false,
+  });
+  assert.equal(manager.port(), 47999);
+});
 
 test('allows three failures in sixty seconds and rejects the fourth', () => {
   let now = 0;

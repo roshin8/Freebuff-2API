@@ -9,8 +9,8 @@ const fs = require('node:fs');
 const http = require('node:http');
 
 const configIndex = process.argv.indexOf('--config');
-const config = fs.readFileSync(process.argv[configIndex + 1], 'utf8');
-const match = /^listen_addr:\\s*["']?127\\.0\\.0\\.1:(\\d+)["']?\\s*$/m.exec(config);
+const config = JSON.parse(fs.readFileSync(process.argv[configIndex + 1], 'utf8'));
+const match = /^127\\.0\\.0\\.1:(\\d+)$/.exec(config.listen_addr);
 const delayPath = require('node:path').join(process.cwd(), 'health-delay-ms');
 const tricklePath = require('node:path').join(process.cwd(), 'health-trickle-ms');
 const shutdownOutputPath = require('node:path').join(process.cwd(), 'shutdown-output-bytes');

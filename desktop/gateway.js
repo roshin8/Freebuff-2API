@@ -49,10 +49,17 @@ class GatewayManager extends EventEmitter {
     if (!this.fs.existsSync(this.configPath)) {
       const config = initialConfig(this.userDataDir);
       config.listen_addr = `127.0.0.1:${this.defaultPort}`;
-      this.fs.writeFileSync(this.configPath, YAML.stringify(config), { flag: 'wx', mode: 0o600 });
+      this.fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), { flag: 'wx', mode: 0o600 });
     }
 
-    this.config = YAML.parse(this.fs.readFileSync(this.configPath, 'utf8'));
+    const source = this.fs.readFileSync(this.configPath, 'utf8');
+    try {
+      this.config = JSON.parse(source);
+    } catch {
+      // Keep the existing path/settings, but the pinned gateway accepts JSON only.
+      this.config = YAML.parse(source);
+      this.fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), { mode: 0o600 });
+    }
     return this.config;
   }
 
