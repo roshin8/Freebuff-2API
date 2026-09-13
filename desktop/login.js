@@ -4,6 +4,7 @@ const LOGIN_PARTITION = 'persist:freebuff-login';
 const LOGIN_URL = 'https://freebuff.com/';
 const COOKIE_URL = 'https://freebuff.com';
 const SESSION_COOKIE = '__Secure-next-auth.session-token';
+const REQUEST_TIMEOUT_MS = 1_000;
 
 function buildCookieHeader(cookies) {
   return cookies
@@ -28,6 +29,14 @@ function postCookie({ cookie, port, apiKey, http = nodeHttp }) {
   }
 
   return new Promise((resolve) => {
+    let settled = false;
+    let deadlineTimer;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadlineTimer);
+      resolve(result);
+    };
     const data = JSON.stringify({ cookie });
     const headers = {
       'content-type': 'application/json',
@@ -46,16 +55,30 @@ function postCookie({ cookie, port, apiKey, http = nodeHttp }) {
       response.on('data', (chunk) => chunks.push(chunk));
       response.on('end', () => {
         const status = response.statusCode || 0;
-        resolve({
+        finish({
           ok: status >= 200 && status < 300,
           status,
           body: Buffer.concat(chunks).toString('utf8'),
         });
       });
+      response.once('aborted', () => {
+        finish({ ok: false, status: 0, body: 'Gateway response aborted' });
+      });
+      response.once('error', (error) => {
+        finish({ ok: false, status: 0, body: `Gateway response error: ${String(error)}` });
+      });
     });
     request.once('error', (error) => {
-      resolve({ ok: false, status: 0, body: String(error) });
+      finish({ ok: false, status: 0, body: String(error) });
     });
+    deadlineTimer = setTimeout(() => {
+      finish({
+        ok: false,
+        status: 0,
+        body: `Gateway request timed out after ${REQUEST_TIMEOUT_MS}ms`,
+      });
+      request.destroy();
+    }, REQUEST_TIMEOUT_MS);
     request.end(data);
   });
 }
@@ -175,11 +198,16 @@ function createLoginController({ BrowserWindow, session, dialog, logger, port, a
     };
     window.webContents.on('will-navigate', blockDisallowedNavigation);
     window.webContents.on('will-redirect', blockDisallowedNavigation);
-    window.webContents.setWindowOpenHandler(({ url }) => ({
-      action: isAllowedLoginUrl(url) ? 'allow' : 'deny',
-    }));
-    window.webContents.on('did-navigate', (_event, url) => {
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (isAllowedLoginUrl(url)) window.loadURL(url);
+      return { action: 'deny' };
+    });
+    const captureForCompletedUrl = (url) => {
       if (isCompletedLoginUrl(url)) void captureAfterNavigation(window);
+    };
+    window.webContents.on('did-navigate', (_event, url) => captureForCompletedUrl(url));
+    window.webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
+      if (isMainFrame) captureForCompletedUrl(url);
     });
     window.on('closed', () => {
       if (loginWindow === window) loginWindow = null;
