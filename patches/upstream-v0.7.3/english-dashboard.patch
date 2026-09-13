@@ -957,41 +957,6 @@ index 11d89ec..4ecb31f 100644
      #[test]
      fn seed_is_idempotent() {
          let tmp = tempdir().unwrap();
-diff --git a/src/web_protocol.rs b/src/web_protocol.rs
-index f2c57ea..370dc91 100644
---- a/src/web_protocol.rs
-+++ b/src/web_protocol.rs
-@@ -841,13 +841,22 @@ async fn parse_json<T: for<'de> Deserialize<'de>>(resp: reqwest::Response) -> Re
-     if !status.is_success() {
-         return Err(anyhow!("HTTP {status}: {}", text.chars().take(300).collect::<String>()));
-     }
--    serde_json::from_str(&text).map_err(|e| anyhow!("解析响应失败: {e}"))
-+    serde_json::from_str(&text).map_err(|e| anyhow!("Could not parse upstream JSON response: {e}"))
- }
- 
- #[cfg(test)]
- mod tests {
-     use super::*;
- 
-+    #[tokio::test]
-+    async fn malformed_upstream_json_english_localization() {
-+        let response = http::Response::builder().status(200).body("not json").unwrap();
-+        let error = parse_json::<serde_json::Value>(response.into()).await.unwrap_err();
-+        assert!(error.to_string().starts_with("Could not parse upstream JSON response:"), "{error}");
-+        let valid = http::Response::builder().status(200).body("{\"ok\":true}").unwrap();
-+        assert_eq!(parse_json::<serde_json::Value>(valid.into()).await.unwrap()["ok"], true);
-+    }
-+
-     fn new_slot() -> Arc<Mutex<Option<String>>> {
-         Arc::new(Mutex::new(None))
-     }
-@@ -1213,4 +1222,4 @@ mod tests {
-         assert_eq!(a.user_data.visitor_id, a2.user_data.visitor_id);
-         assert_eq!(a.client_context, a2.client_context);
-     }
--}
-\ No newline at end of file
-+}
 diff --git a/src/upstream.rs b/src/upstream.rs
 index f7d330f..90a9026 100644
 --- a/src/upstream.rs
@@ -1023,7 +988,7 @@ index f7d330f..90a9026 100644
 +    }
 +}
 diff --git a/src/web.rs b/src/web.rs
-index 555e64a..1a55947 100644
+index 555e64a..63f4f05 100644
 --- a/src/web.rs
 +++ b/src/web.rs
 @@ -8,11 +8,11 @@
@@ -1356,7 +1321,7 @@ index 555e64a..1a55947 100644
            <span id="mem-save-result" style="font-size:13px;color:var(--muted)"></span>
          </div>
        </div>
-@@ -301,113 +301,113 @@ details { margin:6px 0; } summary { cursor:pointer; color:var(--muted); font-siz
+@@ -301,113 +301,119 @@ details { margin:6px 0; } summary { cursor:pointer; color:var(--muted); font-siz
  
    <section id="tab-teach" style="display:none">
      <div class="panel">
@@ -1489,6 +1454,12 @@ index 555e64a..1a55947 100644
 -      <pre id="g-openai"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-openai').textContent)">复制</button>
 +      <h2 style="margin-top:16px">Cursor / Continue / OpenAI-compatible clients</h2>
 +      <pre id="g-openai"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-openai').textContent)">Copy</button>
++
++      <h2 style="margin-top:16px">OpenCode</h2>
++      <p style="font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:8px">
++        Add the generated <code>provider</code> block to <code>~/.config/opencode/opencode.jsonc</code> alongside any existing settings—do not replace your existing <code>mcp</code> or other provider entries. Keep Freebuff2API running, restart OpenCode, run <code>/models</code>, then select the model under <b>Freebuff2API</b>.
++      </p>
++      <pre id="g-opencode"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-opencode').textContent)">Copy OpenCode config</button>
  
        <h2 style="margin-top:16px">OpenAI SDK (Python)</h2>
 -      <pre id="g-py"></pre><button class="ghost sm" onclick="copyText(document.getElementById('g-py').textContent)">复制</button>
@@ -1528,7 +1499,7 @@ index 555e64a..1a55947 100644
      authWarned = false;
      loadGuide();
      refreshOverview();
-@@ -426,10 +426,10 @@ async function api(url, opt) {
+@@ -426,10 +432,10 @@ async function api(url, opt) {
  function toast(msg, ms) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', ms || 2600); }
  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
  function badge(text, cls) { return `<span class="badge ${cls || 'dim'}">${esc(text)}</span>`; }
@@ -1542,7 +1513,7 @@ index 555e64a..1a55947 100644
  function showTab(name) {
    document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
    for (const t of ['overview','account','skills','memory','logs','teach','doctor','guide']) {
-@@ -444,16 +444,13 @@ function showTab(name) {
+@@ -444,16 +450,13 @@ function showTab(name) {
    if (name === 'guide') loadGuide();
  }
  
@@ -1562,7 +1533,7 @@ index 555e64a..1a55947 100644
    const unknown = !g || !g.ok;
    if (unknown) {
      g = { listen_addr: location.host, openai_base_url: '/v1', anthropic_base_url: '/', api_keys: null, api_key_hint: '', models_count: null, models_sample: [], data_plane_ready: null };
-@@ -467,65 +464,65 @@ async function loadGuide() {
+@@ -467,65 +470,76 @@ async function loadGuide() {
      const configured = !!(g.api_keys && g.api_keys.configured);
      const local = apiKey();
      $('c-key').value = unknown
@@ -1640,6 +1611,17 @@ index 555e64a..1a55947 100644
 +    : 'If api_keys is not configured, use any nonempty string (such as <code>sk-local</code>)';
 +  $('g-claude').textContent = `# macOS / Linux\nexport ANTHROPIC_BASE_URL=${base}\nexport ANTHROPIC_API_KEY=${key}\n\n# Windows PowerShell\n$env:ANTHROPIC_BASE_URL="${base}"\n$env:ANTHROPIC_API_KEY="${key}"\n\n# Start Claude Code with the claude command`;
 +  $('g-openai').textContent = `Base URL: ${base}/v1\nAPI Key:  ${key}\nModel:    Choose one from ${base}/v1/models (${(g && g.models_count) || '?'} available)`;
++  $('g-opencode').textContent = JSON.stringify({
++    $schema: 'https://opencode.ai/config.json',
++    provider: {
++      freebuff: {
++        npm: '@ai-sdk/openai-compatible',
++        name: 'Freebuff2API',
++        options: { baseURL: `${base}/v1`, apiKey: key },
++        models: { [model]: { name: model } }
++      }
++    }
++  }, null, 2);
 +  $('g-py').textContent = `from openai import OpenAI\nclient = OpenAI(base_url="${base}/v1", api_key="${key}")\nresp = client.chat.completions.create(model="${model}", messages=[{"role":"user","content":"Hello"}])\nprint(resp.choices[0].message.content)`;
 +  $('g-node').textContent = `import OpenAI from "openai";\nconst client = new OpenAI({ baseURL: "${base}/v1", apiKey: "${key}" });\nconst r = await client.chat.completions.create({ model: "${model}", messages: [{ role: "user", content: "Hello" }] });\nconsole.log(r.choices[0].message.content);`;
 +  $('g-curl').textContent = `curl ${base}/v1/chat/completions \\\n  -H "content-type: application/json" \\\n  -H "authorization: Bearer ${key}" \\\n  -d "{\\"model\\":\\"${model}\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"Say hello to confirm the connection works\\"}]}"`;
@@ -1656,7 +1638,7 @@ index 555e64a..1a55947 100644
  async function refreshOverview() {
    try {
      const health = await api('/healthz');
-@@ -534,66 +531,66 @@ async function refreshOverview() {
+@@ -534,66 +548,66 @@ async function refreshOverview() {
      $('ver').textContent = 'v' + (health.version || '');
      const accs = health.accounts || [];
      const alive = accs.filter(a => a.healthy).length;
@@ -1752,7 +1734,7 @@ index 555e64a..1a55947 100644
      }
    }
  }
-@@ -607,72 +604,72 @@ async function loadBalance() {
+@@ -607,72 +621,72 @@ async function loadBalance() {
      const r = await fetch('/api/account/balance', { headers: apiKey() ? { authorization: 'Bearer ' + apiKey() } : {} });
      if (!r.ok) {
        $('balance-panel').style.display = '';
@@ -1860,7 +1842,7 @@ index 555e64a..1a55947 100644
    }, 600);
  }
  window.addEventListener('message', (e) => {
-@@ -682,20 +679,20 @@ window.addEventListener('message', (e) => {
+@@ -682,20 +696,20 @@ window.addEventListener('message', (e) => {
    const isNew = extId !== d.id;
    extId = d.id; extVersion = d.version || '';
    renderExtStatus();
@@ -1885,7 +1867,7 @@ index 555e64a..1a55947 100644
      try {
        chrome.runtime.sendMessage(extId, msg, (resp) => {
          clearTimeout(timer);
-@@ -710,231 +707,221 @@ function downloadExtension() {
+@@ -710,231 +724,221 @@ function downloadExtension() {
    window.open('/api/extension/bundle' + (k ? '?key=' + encodeURIComponent(k) : ''), '_blank');
  }
  
@@ -2182,7 +2164,7 @@ index 555e64a..1a55947 100644
          return `<tr>
            <td>${acct} ${validBadge}</td>
            <td>${t.kind === 'web-cookie' ? badge('Web Cookie', 'ok') : badge('Bearer', 'dim')}</td>
-@@ -943,77 +930,77 @@ async function refreshTokens() {
+@@ -943,77 +947,77 @@ async function refreshTokens() {
            <td style="font-size:12px">${remain}</td>
            <td style="font-size:12px">${esc(added)}</td>
            <td class="row">
@@ -2295,7 +2277,7 @@ index 555e64a..1a55947 100644
      (list || []).map(t => {
        const m = t.meta || {};
        const label = m.email || m.name || t.token_masked;
-@@ -1026,7 +1013,7 @@ function fillHistoryCredOptions(list) {
+@@ -1026,7 +1030,7 @@ function fillHistoryCredOptions(list) {
  async function loadHistory() {
    const wrap = $('hist-wrap');
    if (!wrap) return;
@@ -2304,7 +2286,7 @@ index 555e64a..1a55947 100644
    try {
      if (!tokenCache.length) { try { const r = await api('/api/tokens'); tokenCache = r.tokens || []; fillHistoryCredOptions(tokenCache); } catch (e) {} }
      const cred = $('hist-cred') ? $('hist-cred').value : '';
-@@ -1034,121 +1021,125 @@ async function loadHistory() {
+@@ -1034,121 +1038,125 @@ async function loadHistory() {
      const d = await api(q);
      const rows = d.records || [];
      wrap.innerHTML = rows.length ? `<table><thead><tr>
@@ -2472,7 +2454,7 @@ index 555e64a..1a55947 100644
  }
  function toggleSkillAt(i) { const s = skillsCache[i]; if (s) toggleSkill(s.id, !s.enabled); }
  function delSkillAt(i) { const s = skillsCache[i]; if (s) delSkill(s.id); }
-@@ -1156,14 +1147,14 @@ function editSkillAt(i) {
+@@ -1156,14 +1164,14 @@ function editSkillAt(i) {
    const s = skillsCache[i];
    if (!s) return;
    editingSkillId = s.id;
@@ -2489,7 +2471,7 @@ index 555e64a..1a55947 100644
    $('sk-name').value = ''; $('sk-desc').value = ''; $('sk-body').value = '';
    $('skill-editor').style.display = '';
    $('gate-result').textContent = '';
-@@ -1171,45 +1162,45 @@ function newSkill() {
+@@ -1171,45 +1179,45 @@ function newSkill() {
  function editSkill(jsonStr) {
    const s = JSON.parse(jsonStr);
    editingSkillId = s.id;
@@ -2548,7 +2530,7 @@ index 555e64a..1a55947 100644
  async function refreshMemory() {
    try {
      const d = await api('/api/memory');
-@@ -1217,22 +1208,22 @@ async function refreshMemory() {
+@@ -1217,22 +1225,22 @@ async function refreshMemory() {
      memEnabled = !!d.enabled;
      const t = $('mem-toggle');
      if (t.checked !== memEnabled) t.checked = memEnabled;
@@ -2579,7 +2561,7 @@ index 555e64a..1a55947 100644
  }
  async function toggleMemoryEnabled() {
    const t = $('mem-toggle');
-@@ -1242,12 +1233,12 @@ async function toggleMemoryEnabled() {
+@@ -1242,12 +1250,12 @@ async function toggleMemoryEnabled() {
      const r = await api('/api/memory/toggle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: target }) });
      memEnabled = !!(r && r.enabled !== undefined ? r.enabled : target);
      if (t.checked !== memEnabled) t.checked = memEnabled;
@@ -2596,7 +2578,7 @@ index 555e64a..1a55947 100644
    } finally { t.disabled = false; }
  }
  function newMemory() {
-@@ -1256,27 +1247,27 @@ function newMemory() {
+@@ -1256,27 +1264,27 @@ function newMemory() {
  }
  async function saveMemory() {
    const title = $('mem-title').value.trim(), content = $('mem-content').value.trim(), kind = $('mem-kind').value;
@@ -2631,7 +2613,7 @@ index 555e64a..1a55947 100644
  let logEvents = [];
  let logSource = null;
  async function initLogs() {
-@@ -1289,40 +1280,40 @@ async function initLogs() {
+@@ -1289,40 +1297,40 @@ async function initLogs() {
      logSource.onmessage = (e) => {
        try { const ev = JSON.parse(e.data); logEvents.push(ev); if (logEvents.length > 500) logEvents = logEvents.slice(-500); renderLogs(); } catch (err) {}
      };
@@ -2681,3 +2663,38 @@ index 555e64a..1a55947 100644
  if (location.hash === '#doctor') showTab('doctor');
  startOverviewTimer();
  </script>
+diff --git a/src/web_protocol.rs b/src/web_protocol.rs
+index f2c57ea..370dc91 100644
+--- a/src/web_protocol.rs
++++ b/src/web_protocol.rs
+@@ -841,13 +841,22 @@ async fn parse_json<T: for<'de> Deserialize<'de>>(resp: reqwest::Response) -> Re
+     if !status.is_success() {
+         return Err(anyhow!("HTTP {status}: {}", text.chars().take(300).collect::<String>()));
+     }
+-    serde_json::from_str(&text).map_err(|e| anyhow!("解析响应失败: {e}"))
++    serde_json::from_str(&text).map_err(|e| anyhow!("Could not parse upstream JSON response: {e}"))
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[tokio::test]
++    async fn malformed_upstream_json_english_localization() {
++        let response = http::Response::builder().status(200).body("not json").unwrap();
++        let error = parse_json::<serde_json::Value>(response.into()).await.unwrap_err();
++        assert!(error.to_string().starts_with("Could not parse upstream JSON response:"), "{error}");
++        let valid = http::Response::builder().status(200).body("{\"ok\":true}").unwrap();
++        assert_eq!(parse_json::<serde_json::Value>(valid.into()).await.unwrap()["ok"], true);
++    }
++
+     fn new_slot() -> Arc<Mutex<Option<String>>> {
+         Arc::new(Mutex::new(None))
+     }
+@@ -1213,4 +1222,4 @@ mod tests {
+         assert_eq!(a.user_data.visitor_id, a2.user_data.visitor_id);
+         assert_eq!(a.client_context, a2.client_context);
+     }
+-}
+\ No newline at end of file
++}

@@ -5,10 +5,10 @@ const path = require('node:path');
 
 test('release notes identify both versions, architectures, trust guidance, attribution, and checksum commands', () => {
   const result = spawnSync(process.execPath, ['scripts/release-notes.js'], {
-    cwd: path.resolve(__dirname, '../..'), encoding: 'utf8', env: { ...process.env, GITHUB_REF_NAME: 'v0.1.1' },
+    cwd: path.resolve(__dirname, '../..'), encoding: 'utf8', env: { ...process.env, GITHUB_REF_NAME: 'v0.1.2' },
   });
   assert.equal(result.status, 0, result.stderr);
-  for (const text of ['0.1.1', 'v0.7.3', '506240d7deef1272ed05313ed72f7d9f11785e89', 'arm64', 'x64', 'unsigned', 'unnotarized', 'Gatekeeper', 'Privacy & Security', 'lza6/Freebuff-2API', 'roshin8', 'SHA256SUMS.txt', 'shasum -a 256 -c -']) {
+  for (const text of ['0.1.2', 'v0.7.3', '506240d7deef1272ed05313ed72f7d9f11785e89', 'arm64', 'x64', 'unsigned', 'unnotarized', 'Gatekeeper', 'Privacy & Security', 'lza6/Freebuff-2API', 'roshin8', 'SHA256SUMS.txt', 'shasum -a 256 -c -']) {
     assert.ok(result.stdout.includes(text), `Missing release guidance: ${text}`);
   }
 });

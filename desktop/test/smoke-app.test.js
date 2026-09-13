@@ -43,6 +43,7 @@ test('packaged smoke ignores inherited gateway storage paths and runtime overrid
   assert.equal(fs.readFileSync(sentinel, 'utf8'), 'synthetic external data');
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /Dashboard HTML is English/);
+  assert.match(result.stdout, /copy-ready OpenCode setup/);
   assert.match(result.stdout, /Renderer dashboard loaded: Freebuff2API Dashboard/);
   assert.match(result.stdout, /Clean shutdown/);
 });

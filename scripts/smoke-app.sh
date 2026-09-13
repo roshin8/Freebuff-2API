@@ -159,7 +159,11 @@ const html = fs.readFileSync(process.argv[2], 'utf8');
 assert.match(html, /<html lang="en">/);
 assert.match(html, /<title>Freebuff2API Dashboard<\/title>/);
 assert.doesNotMatch(html, /\p{Script=Han}/u);
+for (const required of ['OpenCode', '.config/opencode/opencode.jsonc', '@ai-sdk/openai-compatible', 'g-opencode']) {
+  assert.ok(html.includes(required), `dashboard is missing OpenCode setup content: ${required}`);
+}
 console.log('Dashboard HTML is English (no Han-script characters)');
+console.log('Dashboard includes copy-ready OpenCode setup');
 NODE
 
 # Observe the real renderer before interrupting its server. An independent

@@ -5,7 +5,7 @@ by `roshin8`. It is not a GitHub fork and does not include the upstream Rust
 source. This wrapper builds the gateway from the audited upstream
 [Freebuff-2API](https://github.com/lza6/Freebuff-2API) release pinned to
 `v0.7.3` (`506240d7deef1272ed05313ed72f7d9f11785e89`). Wrapper releases use
-their own version numbers; the current wrapper version is `0.1.1`.
+their own version numbers; the current wrapper version is `0.1.2`.
 
 The bundled dashboard is in English. Builds apply the audited
 [English UI patch](patches/upstream-v0.7.3/english-dashboard.patch) to the exact
@@ -62,6 +62,11 @@ the login window stays open and shows the reason. The upstream dashboard's
 manual import options remain available as alternatives. If the gateway cannot
 start, use the configuration and log paths reported by the application to
 troubleshoot before attempting login.
+
+The dashboard's **Client setup** tab includes a copy-ready OpenCode provider
+configuration generated from the running gateway's URL, current API-key state,
+and an available model ID. Merge its `provider` block into
+`~/.config/opencode/opencode.jsonc`, restart OpenCode, and run `/models`.
 
 The application keeps its configuration, gateway data, credentials, logs, and
 login-related local state under:

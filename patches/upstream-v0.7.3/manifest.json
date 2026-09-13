@@ -3,7 +3,7 @@
   "files": {
     "src/web.rs": {
       "original": "c0942701664a21c1c979e8c5099ced985fc87501caf36db7b3583a891f8592b1",
-      "patched": "15622371df5e28cbbe430b49d3f4ec57b279dcbad36788bb77e68ff36b2cca18"
+      "patched": "5ee219f865d8ac8df1dc6f38680f735d54318926343480886b6d0b0dabbf3c71"
     },
     "src/api.rs": {
       "original": "43586978ed6783bc7a5e301e34744f5726df38cef2d1989c1e4c0828be52a707",

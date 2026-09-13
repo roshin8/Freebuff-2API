@@ -54,6 +54,12 @@ test('localizes the exact pinned dashboard and rejects source drift', { skip: !u
   // Startup requests are covered by packaged smoke; exercise actual rendering functions here.
   vm.runInContext(script.slice(0, script.lastIndexOf('\nrefreshOverview();')), context);
   vm.runInContext('fillGuide({models_count: 1, models_sample: ["test-model"]}); newSkill(); newMemory(); renderLogs();', context);
+  assert.match(html, /OpenCode/);
+  assert.match(html, /\.config\/opencode\/opencode\.jsonc/);
+  assert.match(element('g-opencode').textContent, /@ai-sdk\/openai-compatible/);
+  assert.match(element('g-opencode').textContent, /"baseURL": "http:\/\/127\.0\.0\.1:47821\/v1"/);
+  assert.match(element('g-opencode').textContent, /"apiKey": "sk-local"/);
+  assert.match(element('g-opencode').textContent, /"test-model"/);
   assert.match(element('g-py').textContent, /Hello/);
   assert.match(element('skill-editor-title').textContent, /New skill/);
   assert.match(element('logbox').innerHTML, /No logs/);
