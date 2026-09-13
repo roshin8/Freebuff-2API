@@ -1,7 +1,7 @@
 # Development
 
-This wrapper supports native macOS `arm64` and `x64` builds. Use macOS with
-Node.js 20 or later, Rust 1.95, Cargo, and the macOS developer tools that
+This wrapper supports native macOS `arm64` and `x64` builds. Use macOS 13 or later with
+Node.js 22.12 or later, Rust 1.95, Cargo, and the macOS developer tools that
 provide `file`, `shasum`, and `xattr`. Start in a local clone of this wrapper.
 
 ## Clone and pin the upstream checkout

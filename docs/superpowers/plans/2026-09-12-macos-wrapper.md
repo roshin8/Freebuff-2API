@@ -729,6 +729,43 @@ git commit -m "feat: localize bundled dashboard to English"
 
 ---
 
+### Task 10B: Clear dependency advisories before publication
+
+**Files:**
+- Modify: `desktop/package.json`
+- Modify: `desktop/package-lock.json`
+- Modify: documentation only if supported runtime requirements change
+
+**Interfaces:**
+- Consumes: the packaged English wrapper verified by Task 10A
+- Produces: a locked Electron/build dependency tree with no known npm audit findings
+
+- [ ] **Step 1: Record the current audit failure and exact affected direct dependencies**
+
+Run `npm audit --prefix desktop --json` and preserve the advisory summary. Confirm
+the fixes resolve through supported stable releases of the direct `electron` and
+`electron-builder` dependencies rather than lockfile overrides.
+
+- [ ] **Step 2: Update only the affected direct dependencies**
+
+Move Electron and electron-builder to current stable patched versions, regenerate
+the lockfile with npm, and avoid unrelated dependency changes.
+
+- [ ] **Step 3: Verify compatibility and audit cleanliness**
+
+Run `npm audit --prefix desktop`, the full wrapper suite with exact upstream and
+packaged app inputs, workflow verification, unsigned arm64 packaging, bundle
+inspection, and packaged English smoke. Require zero audit vulnerabilities.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add desktop/package.json desktop/package-lock.json docs
+git commit -m "build: update Electron packaging dependencies"
+```
+
+---
+
 ### Task 11: Publish the independent repository and first release
 
 **Files:**

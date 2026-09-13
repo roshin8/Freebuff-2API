@@ -16,6 +16,8 @@ content.
 
 ## Download and install
 
+Requires macOS 13 (Ventura) or later.
+
 Download the asset that matches your Mac from the
 [latest release](https://github.com/roshin8/Freebuff-2API/releases/latest):
 
