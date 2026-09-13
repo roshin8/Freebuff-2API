@@ -1,0 +1,62 @@
+name: Validate macOS wrapper
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      FREEBUFF_UPSTREAM_DIR: ${{ github.workspace }}/_upstream
+    steps:
+      - id: wrapper
+        uses: actions/checkout@v4
+      - id: upstream
+        uses: actions/checkout@v4
+        with:
+          repository: lza6/Freebuff-2API
+          ref: 506240d7deef1272ed05313ed72f7d9f11785e89
+          path: _upstream
+          persist-credentials: false
+      - id: verify_upstream
+        run: test "$(git -C _upstream rev-parse HEAD)" = "506240d7deef1272ed05313ed72f7d9f11785e89"
+      - id: rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - id: rust_tests
+        working-directory: _upstream
+        run: cargo test --locked
+      - id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - id: prepare
+        run: node scripts/prepare-gateway.js
+      - id: npm_install
+        working-directory: desktop
+        run: npm ci
+      - id: node_tests
+        working-directory: desktop
+        run: npm test
+      - id: package
+        working-directory: desktop
+        run: npm run dist:mac -- --arm64
+      - id: smoke
+        env:
+          APP_PATH: ${{ github.workspace }}/desktop/dist/mac-arm64/Freebuff2API.app
+          EXPECTED_ARCH: arm64
+        run: node scripts/smoke-bundle.js

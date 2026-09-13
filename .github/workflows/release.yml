@@ -1,0 +1,108 @@
+name: Release macOS wrapper
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      FREEBUFF_UPSTREAM_DIR: ${{ github.workspace }}/_upstream
+    steps:
+      - id: wrapper
+        uses: actions/checkout@v4
+      - id: upstream
+        uses: actions/checkout@v4
+        with:
+          repository: lza6/Freebuff-2API
+          ref: 506240d7deef1272ed05313ed72f7d9f11785e89
+          path: _upstream
+          persist-credentials: false
+      - id: verify_upstream
+        run: test "$(git -C _upstream rev-parse HEAD)" = "506240d7deef1272ed05313ed72f7d9f11785e89"
+      - id: rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+      - id: rust_tests
+        working-directory: _upstream
+        run: cargo test --locked
+      - id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - id: prepare
+        run: node scripts/prepare-gateway.js
+      - id: npm_install
+        working-directory: desktop
+        run: npm ci
+      - id: node_tests
+        working-directory: desktop
+        run: npm test
+      - id: package
+        working-directory: desktop
+        run: npm run dist:mac -- --${{ matrix.arch }}
+      - id: smoke
+        env:
+          APP_PATH: ${{ github.workspace }}/desktop/dist/${{ matrix.arch == 'arm64' && 'mac-arm64' || 'mac' }}/Freebuff2API.app
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: node scripts/smoke-bundle.js
+      - id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: |
+            desktop/dist/Freebuff2API-*-${{ matrix.arch }}.dmg
+            desktop/dist/Freebuff2API-*-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    # A manual branch dispatch builds artifacts; dispatch on a v* tag to publish.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - id: download
+        uses: actions/download-artifact@v4
+        with:
+          pattern: macos-*
+          path: release
+          merge-multiple: true
+      - id: checksums
+        working-directory: release
+        run: |
+          shasum -a 256 Freebuff2API-*-arm64.dmg Freebuff2API-*-arm64.zip Freebuff2API-*-x64.dmg Freebuff2API-*-x64.zip > SHA256SUMS.txt
+          shasum -a 256 -c SHA256SUMS.txt
+      - id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            release/Freebuff2API-*-arm64.dmg
+            release/Freebuff2API-*-arm64.zip
+            release/Freebuff2API-*-x64.dmg
+            release/Freebuff2API-*-x64.zip
+            release/SHA256SUMS.txt
