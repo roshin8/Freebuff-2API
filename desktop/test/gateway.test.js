@@ -41,6 +41,51 @@ test('allows three failures in sixty seconds and rejects the fourth', () => {
   assert.equal(window.record(), true);
 });
 
+test('reads rotated API keys from the current JSON config and hides parse errors', async (t) => {
+  const fixture = await createGatewayFixture();
+  t.after(fixture.cleanup);
+  const manager = new GatewayManager(fixture.options);
+  manager.ensureConfig();
+  for (const keys of [['generated-secret'], ['set-secret'], []]) {
+    fs.writeFileSync(manager.configPath, JSON.stringify({ ...manager.config, api_keys: keys }));
+    assert.equal(manager.currentApiKey(), keys[0]);
+  }
+  fs.writeFileSync(manager.configPath, '{"api_keys":["never-log-this-secret"');
+  assert.throws(() => manager.currentApiKey(), error => /configuration/.test(error.message) && !error.message.includes('never-log'));
+});
+
+test('atomic normalization preserves the original and recovers after a failed rename', async (t) => {
+  const fixture = await createGatewayFixture();
+  t.after(fixture.cleanup);
+  const manager = new GatewayManager(fixture.options);
+  fs.mkdirSync(manager.userDataDir, { recursive: true });
+  const yaml = 'listen_addr: 127.0.0.1:47999\napi_keys: [preserved-secret]\n';
+  fs.writeFileSync(manager.configPath, yaml, { mode: 0o600 });
+  manager.fs = { ...fs, renameSync() { throw new Error('simulated interrupted rename'); } };
+  assert.throws(() => manager.ensureConfig(), /interrupted rename/);
+  assert.equal(fs.readFileSync(manager.configPath, 'utf8'), yaml);
+  assert.equal(fs.readFileSync(manager.configPath + '.bak', 'utf8'), yaml);
+  manager.fs = fs;
+  manager.ensureConfig();
+  assert.deepEqual(JSON.parse(fs.readFileSync(manager.configPath)).api_keys, ['preserved-secret']);
+  assert.equal(fs.statSync(manager.configPath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(manager.configPath + '.bak').mode & 0o777, 0o600);
+  assert.equal(fs.readdirSync(manager.userDataDir).some(name => name.endsWith('.tmp')), false);
+});
+
+test('interrupted initial config publication leaves no partial config and can be retried', async (t) => {
+  const fixture = await createGatewayFixture();
+  t.after(fixture.cleanup);
+  const manager = new GatewayManager(fixture.options);
+  manager.fs = { ...fs, linkSync() { throw new Error('simulated interrupted publication'); } };
+  assert.throws(() => manager.ensureConfig(), /interrupted publication/);
+  assert.equal(fs.existsSync(manager.configPath), false);
+  assert.equal(fs.readdirSync(manager.userDataDir).some(name => name.endsWith('.tmp')), false);
+  manager.fs = fs;
+  manager.ensureConfig();
+  assert.equal(JSON.parse(fs.readFileSync(manager.configPath)).listen_addr, `127.0.0.1:${fixture.port}`);
+});
+
 test('writes safe initial config and stops its real child process', async (t) => {
   const fixture = await createGatewayFixture();
   t.after(fixture.cleanup);

@@ -5,7 +5,7 @@ by `roshin8`. It is not a GitHub fork and does not include the upstream Rust
 source. This wrapper builds the gateway from the audited upstream
 [Freebuff-2API](https://github.com/lza6/Freebuff-2API) release pinned to
 `v0.7.3` (`506240d7deef1272ed05313ed72f7d9f11785e89`). Wrapper releases use
-their own version numbers, beginning with `0.1.0`.
+their own version numbers; the current wrapper version is `0.1.1`.
 
 The bundled dashboard is in English. Builds apply the audited
 [English UI patch](patches/upstream-v0.7.3/english-dashboard.patch) to the exact
@@ -71,8 +71,9 @@ login-related local state under:
 ```
 
 The configuration file is `config.yaml`, containing JSON as required by the
-pinned gateway. Existing YAML settings are converted to JSON on startup;
-values are preserved, but YAML comments and formatting are not. Gateway logs
+pinned gateway. Existing YAML settings are backed up to `config.yaml.bak`
+before an atomic conversion to JSON on startup. Values are preserved;
+the backup retains the original comments and formatting. Gateway logs
 are in `logs/`. You can also open the configuration, logs, or data directory
 from the tray menu.
 

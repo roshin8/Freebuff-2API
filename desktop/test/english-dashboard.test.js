@@ -26,6 +26,10 @@ test('localizes the exact pinned dashboard and rejects source drift', { skip: !u
   execFileSync('git', ['init', '--quiet', directory]);
   assert.equal(typeof applyEnglishDashboard, 'function', 'preparation must apply the English patch');
   assert.equal(applyEnglishDashboard({ upstreamDir: directory }), 'applied');
+  for (const [file, message] of [
+    ['src/skills/store.rs', 'Skill not found:'],
+    ['src/web_protocol.rs', 'Could not parse upstream JSON response:'],
+  ]) assert.ok(fs.readFileSync(path.join(directory, file), 'utf8').includes(message), file);
   const localized = fs.readFileSync(path.join(directory, 'src/web.rs'), 'utf8');
   assert.equal(applyEnglishDashboard({ upstreamDir: directory }), 'already-applied');
   assert.equal(fs.readFileSync(path.join(directory, 'src/web.rs'), 'utf8'), localized);

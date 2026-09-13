@@ -5,7 +5,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 
-async function launch({ executable = true } = {}) {
+async function launch({ executable = true, failInitialLoad = false } = {}) {
   const windows = [];
   const external = [];
   const errors = [];
@@ -29,7 +29,11 @@ async function launch({ executable = true } = {}) {
       });
       windows.push(this);
     }
-    async loadURL(url) { this.url = url; }
+    async loadURL(url) {
+      this.loadCount = (this.loadCount || 0) + 1;
+      if (failInitialLoad && this.loadCount === 1) throw new Error('initial connection failed');
+      this.url = url;
+    }
     show() { this.visible = true; }
     focus() { this.focused = true; }
     isMinimized() { return false; }
@@ -100,6 +104,16 @@ test('dashboard has isolated preload, exact-origin navigation, and dedicated Fre
   window.webContents.openHandler({ url: 'https://freebuff.com/' });
   assert.equal(state.loginCount, 1);
   assert.deepEqual(state.external, ['https://example.com/']);
+});
+
+test('Open Dashboard retries a failed retained window without creating another window', async () => {
+  const state = await launch({ failInitialLoad: true });
+  assert.equal(state.errors.length, 1);
+  state.menu.find(item => item.label === 'Open Dashboard').click();
+  await new Promise(setImmediate);
+  assert.equal(state.windows.length, 1);
+  assert.equal(state.windows[0].url, 'http://127.0.0.1:47821/ui');
+  assert.equal(state.windows[0].loadCount, 2);
 });
 
 test('login IPC rejects foreign windows, subframes, and navigated-away frames', async () => {

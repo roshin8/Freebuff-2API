@@ -29,11 +29,11 @@ function buildSteps(commit, release) {
     } },
     { id: 'verify_upstream', run: `test "$(git -C _upstream rev-parse HEAD)" = "${commit}"` },
     { id: 'rust', uses: 'dtolnay/rust-toolchain@stable', with: { toolchain: '1.95.0' } },
-    { id: 'rust_tests', 'working-directory': '_upstream', run: 'cargo test --locked' },
     { id: 'node', uses: 'actions/setup-node@v4', with: {
       'node-version': '22', cache: 'npm', 'cache-dependency-path': 'desktop/package-lock.json',
     } },
     { id: 'prepare', run: 'node scripts/prepare-gateway.js' },
+    { id: 'rust_tests', 'working-directory': '_upstream', run: 'cargo test --locked' },
     { id: 'npm_install', 'working-directory': 'desktop', run: 'npm ci' },
     { id: 'node_tests', 'working-directory': 'desktop', run: 'npm test' },
     { id: 'package', 'working-directory': 'desktop', run: `npm run dist:mac -- --${arch}` },
@@ -86,14 +86,16 @@ function verifyWorkflows({ validate, release }) {
     permissions: { contents: 'write' },
   }, 'publish must wait for both successful builds and only publish version tags');
   verifySteps(steps, [
+    { id: 'wrapper', uses: 'actions/checkout@v4' },
     { id: 'download', uses: 'actions/download-artifact@v4', with: {
       pattern: 'macos-*', path: 'release', 'merge-multiple': true,
     } },
     { id: 'checksums', 'working-directory': 'release', run:
       'shasum -a 256 Freebuff2API-*-arm64.dmg Freebuff2API-*-arm64.zip Freebuff2API-*-x64.dmg Freebuff2API-*-x64.zip > SHA256SUMS.txt\nshasum -a 256 -c SHA256SUMS.txt',
     },
+    { id: 'notes', run: 'node scripts/release-notes.js > release/RELEASE_NOTES.md' },
     { id: 'release', uses: 'softprops/action-gh-release@v2', with: {
-      generate_release_notes: true, fail_on_unmatched_files: true,
+      body_path: 'release/RELEASE_NOTES.md', fail_on_unmatched_files: true,
       files: 'release/Freebuff2API-*-arm64.dmg\nrelease/Freebuff2API-*-arm64.zip\nrelease/Freebuff2API-*-x64.dmg\nrelease/Freebuff2API-*-x64.zip\nrelease/SHA256SUMS.txt',
     } },
   ], 'publish');

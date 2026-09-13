@@ -4,7 +4,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { GatewayManager } = require('./gateway');
-const { createLoginController, isAllowedLoginUrl } = require('./login');
+const { createLoginController, isFreebuffUrl } = require('./login');
 const { gatewayPath, dataPathDescription } = require('./platform');
 const { navigationDecision } = require('./app-policy');
 
@@ -13,6 +13,7 @@ app.setName('Freebuff2API');
 let gateway;
 let login;
 let mainWindow = null;
+let dashboardLoadFailed = false;
 let tray;
 let dashboardOpening = null;
 let gatewayStarted = false;
@@ -33,7 +34,7 @@ function openExternal(url) {
 }
 
 function handleExternalNavigation(url) {
-  if (isAllowedLoginUrl(url)) login.openLoginWindow();
+  if (isFreebuffUrl(url)) login.openLoginWindow();
   else openExternal(url);
 }
 
@@ -43,6 +44,10 @@ async function openDashboard() {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+    if (dashboardLoadFailed) {
+      await mainWindow.loadURL(`http://127.0.0.1:${gateway.port()}/ui`);
+      dashboardLoadFailed = false;
+    }
     return;
   }
   if (dashboardOpening) return dashboardOpening;
@@ -83,7 +88,9 @@ async function openDashboard() {
     window.on('closed', () => {
       if (mainWindow === window) mainWindow = null;
     });
+    dashboardLoadFailed = true;
     await window.loadURL(`http://127.0.0.1:${gateway.port()}/ui`);
+    dashboardLoadFailed = false;
   })();
   try {
     await dashboardOpening;
@@ -161,7 +168,7 @@ app.whenReady().then(async () => {
   gatewayStarted = true;
   login = createLoginController({
     BrowserWindow, session, dialog, logger: console,
-    port: gateway.port(), apiKey: gateway.config?.api_keys?.[0],
+    port: gateway.port(), getApiKey: () => gateway.currentApiKey(),
   });
   installLoginHandlers();
   await openDashboard();

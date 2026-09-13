@@ -909,7 +909,7 @@ index 941bc8f..6d92a7b 100644
  
      #[test]
 diff --git a/src/skills/store.rs b/src/skills/store.rs
-index 11d89ec..cf9da1f 100644
+index 11d89ec..4ecb31f 100644
 --- a/src/skills/store.rs
 +++ b/src/skills/store.rs
 @@ -135,7 +135,7 @@ impl SkillsManager {
@@ -921,10 +921,29 @@ index 11d89ec..cf9da1f 100644
          }
  
          let now = Utc::now().to_rfc3339();
-@@ -595,6 +595,16 @@ mod tests {
+@@ -151,7 +151,7 @@ impl SkillsManager {
+             Some(raw) => {
+                 let prev = self
+                     .get(raw)
+-                    .ok_or_else(|| anyhow::anyhow!("技能不存在: {raw}"))?;
++                    .ok_or_else(|| anyhow::anyhow!("Skill not found: {raw}"))?;
+                 if prev.builtin {
+                     bail!("内置技能不可编辑（仅可启用/禁用）: {raw}");
+                 }
+@@ -595,6 +595,26 @@ mod tests {
          }
      }
  
++    #[test]
++    fn missing_skill_english_localization() {
++        let tmp = tempdir().unwrap();
++        let manager = open_at(tmp.path());
++        let before = manager.list().len();
++        let error = manager.upsert(Some("missing-skill"), input("My skill", "Use for test requests", "Follow the requested steps.")).unwrap_err();
++        assert_eq!(error.to_string(), "Skill not found: missing-skill");
++        assert_eq!(manager.list().len(), before);
++    }
++
 +    #[test]
 +    fn empty_skill_instructions_english_localization() {
 +        let tmp = tempdir().unwrap();
@@ -938,6 +957,71 @@ index 11d89ec..cf9da1f 100644
      #[test]
      fn seed_is_idempotent() {
          let tmp = tempdir().unwrap();
+diff --git a/src/web_protocol.rs b/src/web_protocol.rs
+index f2c57ea..370dc91 100644
+--- a/src/web_protocol.rs
++++ b/src/web_protocol.rs
+@@ -841,13 +841,22 @@ async fn parse_json<T: for<'de> Deserialize<'de>>(resp: reqwest::Response) -> Re
+     if !status.is_success() {
+         return Err(anyhow!("HTTP {status}: {}", text.chars().take(300).collect::<String>()));
+     }
+-    serde_json::from_str(&text).map_err(|e| anyhow!("解析响应失败: {e}"))
++    serde_json::from_str(&text).map_err(|e| anyhow!("Could not parse upstream JSON response: {e}"))
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[tokio::test]
++    async fn malformed_upstream_json_english_localization() {
++        let response = http::Response::builder().status(200).body("not json").unwrap();
++        let error = parse_json::<serde_json::Value>(response.into()).await.unwrap_err();
++        assert!(error.to_string().starts_with("Could not parse upstream JSON response:"), "{error}");
++        let valid = http::Response::builder().status(200).body("{\"ok\":true}").unwrap();
++        assert_eq!(parse_json::<serde_json::Value>(valid.into()).await.unwrap()["ok"], true);
++    }
++
+     fn new_slot() -> Arc<Mutex<Option<String>>> {
+         Arc::new(Mutex::new(None))
+     }
+@@ -1213,4 +1222,4 @@ mod tests {
+         assert_eq!(a.user_data.visitor_id, a2.user_data.visitor_id);
+         assert_eq!(a.client_context, a2.client_context);
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/src/upstream.rs b/src/upstream.rs
+index f7d330f..90a9026 100644
+--- a/src/upstream.rs
++++ b/src/upstream.rs
+@@ -346,9 +346,22 @@ async fn parse_json_err<T: for<'de> Deserialize<'de>>(resp: reqwest::Response) -
+     if !status.is_success() {
+         return Err(anyhow!("HTTP {}: {}", status, &text));
+     }
+-    serde_json::from_str(&text).map_err(|e| anyhow!("解析响应失败: {e} 原文: {}", text.chars().take(300).collect::<String>()))
++    serde_json::from_str(&text).map_err(|e| anyhow!("Could not parse upstream JSON response: {e} Response: {}", text.chars().take(300).collect::<String>()))
+ }
+ 
+ pub fn parse_optional_time(s: &str) -> Option<DateTime<Utc>> {
+     DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&Utc))
+-}
+\ No newline at end of file
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[tokio::test]
++    async fn malformed_upstream_json_english_localization() {
++        let response = http::Response::builder().status(200).body("not json").unwrap();
++        let error = parse_json_err::<serde_json::Value>(response.into()).await.unwrap_err();
++        assert!(error.to_string().starts_with("Could not parse upstream JSON response:"), "{error}");
++        assert!(error.to_string().contains("Response: not json"));
++    }
++}
 diff --git a/src/web.rs b/src/web.rs
 index 555e64a..1a55947 100644
 --- a/src/web.rs

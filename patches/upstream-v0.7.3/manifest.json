@@ -19,7 +19,15 @@
     },
     "src/skills/store.rs": {
       "original": "608601d7f9de7de937bf08c945e747969a82068ebe787fcdd67adb4745615583",
-      "patched": "d28d0cd615631a3000c1f363f994af88e83342c0bf161bfa3524f12dc5edd278"
+      "patched": "ab8346661e8ec8454d5c765257b6c464ba5d650cb4e5b7bf207fcd4d7af5e606"
+    },
+    "src/web_protocol.rs": {
+      "original": "d733bbe9a0a05d48b414e40ee4cdec4e599413acee2c647a73c326d6a30d5fe1",
+      "patched": "98b75d14b801aa04a733547d4e46e0df09b8a447c53bbcc9c884ed1ebd009833"
+    },
+    "src/upstream.rs": {
+      "original": "8efe9b858e889f0c1e568484dd407feaf57a41af1db701cfc0ce076e62cd96d7",
+      "patched": "fa06a5d75d08d26148ef11c23cd841d5933da835b3cabe10e005d4b53f8d9e0a"
     }
   }
 }

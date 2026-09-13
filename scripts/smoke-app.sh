@@ -111,9 +111,13 @@ echo "Health OK; app PID $app_pid, bundled gateway PID $gateway_pid"
 status="$(curl --silent --output "$temporary_dir/dashboard.html" --write-out '%{http_code}' --max-time 5 http://127.0.0.1:47821/ui)"
 [[ "$status" == 200 ]] || fail "dashboard returned HTTP $status"
 echo 'Dashboard HTTP 200'
-node <<'NODE'
+node - "$temporary_app/Contents/Resources/bin/freebuff2api" <<'NODE'
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 (async () => {
+  const binary = fs.readFileSync(process.argv[2]);
+  assert.ok(binary.includes(Buffer.from('Could not parse upstream JSON response:')), 'Packaged upstream JSON error must be English');
+  assert.ok(!binary.includes(Buffer.from('解析响应失败')), 'Packaged upstream JSON error is untranslated');
   for (const endpoint of ['/api/doctor', '/api/usage/cost']) {
     const response = await fetch('http://127.0.0.1:47821' + endpoint, { signal: AbortSignal.timeout(5000) });
     assert.equal(response.status, 200);
@@ -131,6 +135,7 @@ const assert = require('node:assert/strict');
   for (const [endpoint, body, message] of [
     ['/api/tokens/import', { cookie: 'not a credential' }, 'No Bearer token or cookie could be extracted from the input'],
     ['/api/skills', { name: 'Smoke validation', description: 'Use for test requests', body: '', force: true }, 'Skill instructions cannot be empty'],
+    ['/api/skills', { id: 'missing-smoke-skill', name: 'Smoke validation', description: 'Use for test requests', body: 'Follow the requested steps.', force: true }, 'Skill not found: missing-smoke-skill'],
   ]) {
     const rejected = await fetch('http://127.0.0.1:47821' + endpoint, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -143,6 +148,7 @@ const assert = require('node:assert/strict');
   }
   assert.deepEqual(failures, [], 'Invalid credential and empty skill instructions must fail in English');
   console.log('Invalid credential and empty skill instructions errors are English');
+  console.log('Missing skill and packaged upstream JSON errors are English');
   console.log('Dashboard diagnostics, cost, and validation messages are English');
 })().catch(error => { console.error(error); process.exitCode = 1; });
 NODE

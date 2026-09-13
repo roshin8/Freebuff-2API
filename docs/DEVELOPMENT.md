@@ -72,7 +72,7 @@ the bundled gateway, and print checksums for the artifacts:
 ```bash
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac --prefix desktop -- --arm64
 APP_PATH="$PWD/desktop/dist/mac-arm64/Freebuff2API.app" EXPECTED_ARCH=arm64 node scripts/smoke-bundle.js
-shasum -a 256 desktop/dist/Freebuff2API-0.1.0-arm64.dmg desktop/dist/Freebuff2API-0.1.0-arm64.zip
+shasum -a 256 desktop/dist/Freebuff2API-0.1.1-arm64.dmg desktop/dist/Freebuff2API-0.1.1-arm64.zip
 ```
 
 The build deliberately disables signing discovery. Build on an Intel Mac with

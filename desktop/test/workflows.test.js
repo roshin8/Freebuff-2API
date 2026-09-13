@@ -18,6 +18,17 @@ test('workflow verifier accepts the checked-in executable CI and release graphs'
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
+test('release publishes explicit generated notes and runs tests on the patched Rust source', () => {
+  const fixture = workflows();
+  const releaseStep = fixture.release.jobs.publish.steps.find(s => s.id === 'release');
+  assert.equal(releaseStep.with.body_path, 'release/RELEASE_NOTES.md');
+  assert.equal(fixture.release.jobs.publish.steps.find(s => s.id === 'notes')?.run, 'node scripts/release-notes.js > release/RELEASE_NOTES.md');
+  for (const workflow of Object.values(fixture)) {
+    const ids = workflow.jobs.build.steps.map(s => s.id);
+    assert.ok(ids.indexOf('rust_tests') > ids.indexOf('prepare'));
+  }
+});
+
 const step = (workflow, id) => workflow.jobs.build.steps.find(item => item.id === id);
 const mutations = [
   ['moving upstream ref', w => { step(w.release, 'upstream').with.ref = 'main'; }],
@@ -41,6 +52,7 @@ const mutations = [
   ['publish without artifact download', w => { w.release.jobs.publish.steps.shift(); }],
   ['checksum command replaced by echo', w => { w.release.jobs.publish.steps.find(s => s.id === 'checksums').run = 'echo SHA256SUMS.txt'; }],
   ['release missing checksums', w => { w.release.jobs.publish.steps.find(s => s.id === 'release').with.files = 'release/*.dmg\nrelease/*.zip'; }],
+  ['missing explicit release notes', w => { delete w.release.jobs.publish.steps.find(s => s.id === 'release').with.body_path; }],
   ['artifact silently absent', w => { step(w.release, 'upload').with['if-no-files-found'] = 'warn'; }],
 ];
 

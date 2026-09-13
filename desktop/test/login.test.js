@@ -151,6 +151,51 @@ test('rejects lookalike login origins', () => {
   assert.equal(isAllowedLoginUrl('not a URL'), false);
 });
 
+test('allows only exact HTTPS OAuth origins and never captures provider cookies', async () => {
+  const fixture = createElectronFixture([]);
+  const controller = createLoginController({ ...fixture, logger: { info() {}, error() {} }, port: 47821 });
+  const window = controller.openLoginWindow();
+  for (const url of ['https://github.com/login/oauth/authorize', 'https://accounts.google.com/o/oauth2/v2/auth', 'https://appleid.apple.com/auth/authorize']) {
+    assert.equal(isAllowedLoginUrl(url), true, url);
+    for (const eventName of ['will-navigate', 'will-redirect']) {
+      let prevented = false;
+      window.webContents.emit(eventName, { preventDefault() { prevented = true; } }, url);
+      assert.equal(prevented, false, url);
+    }
+    assert.deepEqual(window.windowOpenHandler({ url }), { action: 'deny' });
+    assert.equal(window.loadedUrls.at(-1), url);
+    window.webContents.emit('did-navigate', {}, new URL('/account', url).href);
+  }
+  for (const url of ['https://github.com.evil.example/', 'https://evil.github.com/', 'https://accounts.google.com:8443/', 'https://user:pass@appleid.apple.com/', 'http://github.com/', 'javascript:alert(1)', 'https://unrelated.example/']) {
+    assert.equal(isAllowedLoginUrl(url), false, url);
+    let prevented = false;
+    window.webContents.emit('will-redirect', { preventDefault() { prevented = true; } }, url);
+    assert.equal(prevented, true);
+    const before = window.loadedUrls.length;
+    assert.deepEqual(window.windowOpenHandler({ url }), { action: 'deny' });
+    assert.equal(window.loadedUrls.length, before);
+  }
+  await new Promise(setImmediate);
+  assert.deepEqual(fixture.cookieQueries, []);
+});
+
+test('resolves the current local API key on every cookie import after rotation or clearing', async () => {
+  let key = 'startup-key';
+  await withImportServer(async (port) => {
+    const fixture = createElectronFixture([{ name: '__Secure-next-auth.session-token', value: 'secret' }]);
+    const controller = createLoginController({ ...fixture, logger: { info() {}, error() {} }, port, getApiKey: () => key });
+    for (const current of ['generated-key', 'user-set-key', undefined]) {
+      key = current;
+      const { result } = await controller.captureCookies();
+      assert.equal(result.status, 200, result.body);
+    }
+  }, { respond(request, response) {
+    const valid = request.headers.authorization === (key ? `Bearer ${key}` : undefined);
+    response.writeHead(valid ? 200 : 401);
+    response.end(valid ? '{}' : 'stale key');
+  } });
+});
+
 test('posts credentials only to a real loopback server', async () => {
   let expectedPort;
   const received = await withImportServer(async (port) => {

@@ -8,6 +8,15 @@ Freebuff session cookies are posted only to the local gateway on that
 loopback port. The wrapper does not send captured cookies to another host and
 does not read account passwords.
 
+The isolated login window admits Freebuff HTTPS hosts and only these OAuth
+provider origins: `https://github.com`, `https://accounts.google.com`, and
+`https://appleid.apple.com`. Provider subdomains, alternate ports, URL
+credentials, and unrelated origins are denied. Allowed popups are routed into
+the guarded login window. Cookie capture queries only `https://freebuff.com`
+and automatic import runs only after a Freebuff completion URL; provider
+navigation cannot trigger import. Each import reads the current local JSON
+API key configuration, so successful dashboard key changes apply immediately.
+
 The gateway persists its configuration and local data in
 `~/Library/Application Support/Freebuff2API`. Its configured credential/token
 data path is `data/tokens.json`; treat the entire application-support directory

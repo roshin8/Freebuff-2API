@@ -5,6 +5,9 @@ const LOGIN_URL = 'https://freebuff.com/';
 const COOKIE_URL = 'https://freebuff.com';
 const SESSION_COOKIE = '__Secure-next-auth.session-token';
 const REQUEST_TIMEOUT_MS = 1_000;
+// Freebuff's live /api/auth/providers advertises these three OAuth providers.
+// Exact origins deliberately exclude provider subdomains and alternate ports.
+const OAUTH_ORIGINS = new Set(['https://github.com', 'https://accounts.google.com', 'https://appleid.apple.com']);
 
 function buildCookieHeader(cookies) {
   return cookies
@@ -13,11 +16,21 @@ function buildCookieHeader(cookies) {
     .join('; ');
 }
 
-function isAllowedLoginUrl(rawUrl) {
+function isFreebuffUrl(rawUrl) {
   try {
     const url = new URL(rawUrl);
-    return url.protocol === 'https:' &&
+    return url.protocol === 'https:' && !url.port && !url.username && !url.password &&
       (url.hostname === 'freebuff.com' || url.hostname.endsWith('.freebuff.com'));
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedLoginUrl(rawUrl) {
+  if (isFreebuffUrl(rawUrl)) return true;
+  try {
+    const url = new URL(rawUrl);
+    return !url.username && !url.password && OAUTH_ORIGINS.has(url.origin);
   } catch {
     return false;
   }
@@ -84,12 +97,12 @@ function postCookie({ cookie, port, apiKey, http = nodeHttp }) {
 }
 
 function isCompletedLoginUrl(rawUrl) {
-  if (!isAllowedLoginUrl(rawUrl)) return false;
+  if (!isFreebuffUrl(rawUrl)) return false;
   const { pathname } = new URL(rawUrl);
   return /^\/(chat|account|web)(?:\/|$)/.test(pathname);
 }
 
-function createLoginController({ BrowserWindow, session, dialog, logger, port, apiKey }) {
+function createLoginController({ BrowserWindow, session, dialog, logger, port, getApiKey = () => undefined }) {
   let loginWindow = null;
   let loginSession = null;
   let captureInFlight = false;
@@ -112,7 +125,7 @@ function createLoginController({ BrowserWindow, session, dialog, logger, port, a
     }
 
     const cookieStr = buildCookieHeader(cookies);
-    const result = await postCookie({ cookie: cookieStr, port, apiKey });
+    const result = await postCookie({ cookie: cookieStr, port, apiKey: await getApiKey() });
     return { cookieStr, result };
   }
 
@@ -199,7 +212,11 @@ function createLoginController({ BrowserWindow, session, dialog, logger, port, a
     window.webContents.on('will-navigate', blockDisallowedNavigation);
     window.webContents.on('will-redirect', blockDisallowedNavigation);
     window.webContents.setWindowOpenHandler(({ url }) => {
-      if (isAllowedLoginUrl(url)) window.loadURL(url);
+      if (isAllowedLoginUrl(url)) {
+        void (async () => window.loadURL(url))().catch(() => {
+          logger.error('Freebuff login navigation failed');
+        });
+      }
       return { action: 'deny' };
     });
     const captureForCompletedUrl = (url) => {
@@ -223,5 +240,6 @@ module.exports = {
   buildCookieHeader,
   createLoginController,
   isAllowedLoginUrl,
+  isFreebuffUrl,
   postCookie,
 };

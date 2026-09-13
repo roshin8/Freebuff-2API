@@ -35,9 +35,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.95.0
-      - id: rust_tests
-        working-directory: _upstream
-        run: cargo test --locked
       - id: node
         uses: actions/setup-node@v4
         with:
@@ -46,6 +43,9 @@ jobs:
           cache-dependency-path: desktop/package-lock.json
       - id: prepare
         run: node scripts/prepare-gateway.js
+      - id: rust_tests
+        working-directory: _upstream
+        run: cargo test --locked
       - id: npm_install
         working-directory: desktop
         run: npm ci

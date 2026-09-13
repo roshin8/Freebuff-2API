@@ -1,9 +1,21 @@
 const { EventEmitter } = require('node:events');
 const path = require('node:path');
 const YAML = require('yaml');
+const { randomUUID } = require('node:crypto');
 const { configuredPort, gatewayPath, initialConfig } = require('./platform');
 
 const DEFAULT_PORT = 47821;
+
+function writeConfigAtomically(fs, target, config, exclusive = false) {
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(config, null, 2), { flag: 'wx', mode: 0o600, flush: true });
+    if (exclusive) fs.linkSync(temporary, target);
+    else fs.renameSync(temporary, target);
+  } finally {
+    if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+  }
+}
 
 class RestartWindow {
   constructor({ limit, windowMs, now = Date.now }) {
@@ -49,7 +61,7 @@ class GatewayManager extends EventEmitter {
     if (!this.fs.existsSync(this.configPath)) {
       const config = initialConfig(this.userDataDir);
       config.listen_addr = `127.0.0.1:${this.defaultPort}`;
-      this.fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), { flag: 'wx', mode: 0o600 });
+      writeConfigAtomically(this.fs, this.configPath, config, true);
     }
 
     const source = this.fs.readFileSync(this.configPath, 'utf8');
@@ -58,9 +70,31 @@ class GatewayManager extends EventEmitter {
     } catch {
       // Keep the existing path/settings, but the pinned gateway accepts JSON only.
       this.config = YAML.parse(source);
-      this.fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), { mode: 0o600 });
+      if (!this.config || typeof this.config !== 'object' || Array.isArray(this.config)) {
+        throw new Error('The configuration must contain an object.');
+      }
+      // Preserve the original before normalization. A failed write/rename leaves
+      // the source intact; the next launch can safely retry the migration.
+      try {
+        this.fs.writeFileSync(this.configPath + '.bak', source, { flag: 'wx', mode: 0o600 });
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
+      writeConfigAtomically(this.fs, this.configPath, this.config);
     }
     return this.config;
+  }
+
+  currentApiKey() {
+    try {
+      const config = JSON.parse(this.fs.readFileSync(this.configPath, 'utf8'));
+      const keys = config.api_keys ?? [];
+      if (!Array.isArray(keys) || keys.some(key => typeof key !== 'string')) throw new Error();
+      return keys.find(key => key.length > 0);
+    } catch {
+      // JSON parser messages can contain credential-bearing source snippets.
+      throw new Error('The current gateway configuration could not be read. Check the local configuration and retry.');
+    }
   }
 
   start() {
