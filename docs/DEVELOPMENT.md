@@ -15,9 +15,12 @@ git -C ../Freebuff-2API-upstream checkout 506240d7deef1272ed05313ed72f7d9f11785e
 export FREEBUFF_UPSTREAM_DIR="$PWD/../Freebuff-2API-upstream"
 ```
 
-`FREEBUFF_UPSTREAM_DIR` must be an absolute path. The preparation script checks
-that its `HEAD` matches every coordinate recorded in `upstream.json` before it
-builds or copies a gateway binary.
+`FREEBUFF_UPSTREAM_DIR` must be an absolute path. The manifest loader accepts
+only the expected upstream repository format and a syntactically valid tag, and
+the preparation script checks only that the checkout's `HEAD` equals the
+manifest `commit` before it builds or copies a gateway binary. It does not
+inspect the checkout's remote origin or verify that the manifest tag resolves
+to that commit; perform those checks when updating the pin.
 
 ## Install, prepare, and test
 
