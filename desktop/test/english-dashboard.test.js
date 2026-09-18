@@ -7,9 +7,9 @@ const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
 const { applyEnglishDashboard } = require('../../scripts/prepare-gateway');
 
-const patchDir = path.resolve(__dirname, '../../patches/upstream-v0.7.3');
+const patchDir = path.resolve(__dirname, '../../patches/upstream-v0.8.0');
 const upstreamDir = process.env.FREEBUFF_UPSTREAM_DIR;
-const commit = '506240d7deef1272ed05313ed72f7d9f11785e89';
+const commit = 'ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68';
 
 test('ships the audited English patch and source integrity manifest', () => {
   assert.ok(fs.existsSync(path.join(patchDir, 'english-dashboard.patch')), 'English dashboard patch is missing');
@@ -37,7 +37,7 @@ test('localizes the exact pinned dashboard and rejects source drift', { skip: !u
   assert.doesNotMatch(html, /\p{Script=Han}/u);
   assert.match(html, /<html lang="en">/);
   assert.match(html, /<title>Freebuff2API Dashboard<\/title>/);
-  for (const label of ['Overview', 'Accounts', 'Skills', 'Memory', 'Live logs', 'Diagnostics', 'Client setup', 'Add account']) {
+  for (const label of ['Overview', 'Playground', 'Accounts', 'Skills', 'Memory', 'Live logs', 'Diagnostics', 'Client setup', 'Settings', 'About', 'Add account']) {
     assert.ok(html.includes(label), `missing English UI: ${label}`);
   }
   const script = html.match(/<script>([\s\S]*)<\/script>/)[1];

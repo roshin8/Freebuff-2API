@@ -4,7 +4,7 @@ const { execFileSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { loadUpstreamManifest, assertPinnedCheckout } = require('./upstream');
 
-const defaultPatchDir = path.join(__dirname, '..', 'patches', 'upstream-v0.7.3');
+const defaultPatchDir = path.join(__dirname, '..', 'patches', 'upstream-v0.8.0');
 
 function applyEnglishDashboard({ upstreamDir, patchDir = defaultPatchDir, exec = execFileSync, commit } = {}) {
   const manifest = JSON.parse(fs.readFileSync(path.join(patchDir, 'manifest.json'), 'utf8'));

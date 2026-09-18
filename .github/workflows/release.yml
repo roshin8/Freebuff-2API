@@ -33,11 +33,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: lza6/Freebuff-2API
-          ref: 506240d7deef1272ed05313ed72f7d9f11785e89
+          ref: ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68
           path: _upstream
           persist-credentials: false
       - id: verify_upstream
-        run: test "$(git -C _upstream rev-parse HEAD)" = "506240d7deef1272ed05313ed72f7d9f11785e89"
+        run: test "$(git -C _upstream rev-parse HEAD)" = "ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68"
       - id: rust
         uses: dtolnay/rust-toolchain@stable
         with:

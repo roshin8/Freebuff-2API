@@ -1,6 +1,6 @@
 {
   "name": "freebuff-2api-macos-wrapper",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "private": true,
   "main": "main.js",
   "scripts": {

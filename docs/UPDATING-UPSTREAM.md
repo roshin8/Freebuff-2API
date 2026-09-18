@@ -1,8 +1,8 @@
 # Updating the pinned upstream gateway
 
 Upstream changes are deliberate wrapper changes, not automatic dependency
-updates. The wrapper currently pins upstream `v0.7.3` at
-`506240d7deef1272ed05313ed72f7d9f11785e89`.
+updates. The wrapper currently pins upstream `v0.8.0` at
+`ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68`.
 
 1. Select a specific upstream release and commit, then review the complete
    upstream diff, release notes, licensing implications, and any effects on
@@ -71,7 +71,7 @@ updates. The wrapper currently pins upstream `v0.7.3` at
    CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac --prefix desktop -- --arm64
    APP_PATH="$PWD/desktop/dist/mac-arm64/Freebuff2API.app" EXPECTED_ARCH=arm64 node scripts/smoke-bundle.js
    scripts/smoke-app.sh "$PWD/desktop/dist/mac-arm64/Freebuff2API.app"
-   shasum -a 256 desktop/dist/Freebuff2API-0.1.0-arm64.dmg desktop/dist/Freebuff2API-0.1.0-arm64.zip
+   shasum -a 256 desktop/dist/Freebuff2API-0.1.4-arm64.dmg desktop/dist/Freebuff2API-0.1.4-arm64.zip
    ```
 
 6. Document the upstream release notes and test results in a pull request.

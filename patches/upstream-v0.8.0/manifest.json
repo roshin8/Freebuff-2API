@@ -1,0 +1,49 @@
+{
+  "commit": "ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68",
+  "files": {
+    "Cargo.lock": {
+      "original": "40ea09b59f11a3128fcd80b0e11919b1e8d1d019a38df68e01d7f2cee039aa9d",
+      "patched": "cf64004fa46fd789b24102bfe20b9384674be1dcb72000492d81f5a7cdb2fde7"
+    },
+    "Cargo.toml": {
+      "original": "ead804bc45bcb28b6e75ffc746bf67a25bdf90f601a6a3cfa77f8b30d2910ca5",
+      "patched": "3bcf4f640c61b6eee088115f0253f06f5592a33042d8cb17124f4f92ce6aba78"
+    },
+    "src/api.rs": {
+      "original": "79ab79fce4bef844be23568caeda75a76310486cb6c9286dd779155128f51922",
+      "patched": "a1443f65a6b2183e49a55bf11228b4541e1332324f3739df3009e5c305588d48"
+    },
+    "src/import.rs": {
+      "original": "6f606dbf344c74e66aaa1e924c9a2dc7ee81cabb6a66f421b1cdfd055f4222c7",
+      "patched": "3b197030e8a4a4d9e8eb32f95306fb5d2f2a68f6842676d1eae64a1276a651b9"
+    },
+    "src/skills/gate.rs": {
+      "original": "75fb213925f139c7c5d9d14f017aa81b191b570b0b97d7888e3e3cdcfb350db6",
+      "patched": "025a802b23f4ae6aa08dc257321e8ab7a4f8cec838f4fb67ac7d32db843d2249"
+    },
+    "src/skills/store.rs": {
+      "original": "608601d7f9de7de937bf08c945e747969a82068ebe787fcdd67adb4745615583",
+      "patched": "222e412f5b71a24b5690eb139170fdc20df1663e7b3e6a958f791b359730a9e7"
+    },
+    "src/upstream.rs": {
+      "original": "e9826f609efb6430f678c379ca4b602579ca1b36bf97802818090f6e75a9b83f",
+      "patched": "13049ee9ed3017831031e0145212eabad443dcb6f99a4b9c6b9cebce18f937fa"
+    },
+    "src/web.rs": {
+      "original": "faf0e02c7d11c427771bde6b75db79cc400afe3a42308ca044e9758e5f75167b",
+      "patched": "c83ac4e47a666779ed85169c98107d9c5060b191b597659e38372658ac3270d3"
+    },
+    "src/web_protocol.rs": {
+      "original": "35ff4e480bf28eb0b929805ab7d8193cb7c4ac2b0d09d8e1709058788a7ba86e",
+      "patched": "66497012316b6b81ff8f6656ecb155712df0841a5eb5a0b6165af26dbcff0956"
+    },
+    "tests/e2e_phase_i.cjs": {
+      "original": "8c3cdf9182123b34171fe879ea48979fb8bc8a1a54d6f9447b36132af9e1c796",
+      "patched": "5df0f336d599cefa8167a113febc82b9d48831931e8bf9665ad748640efa73d4"
+    },
+    "tests/router_test.rs": {
+      "original": "3daff180ca97bac40f2029c93a5f90890dc06cba5d51f04830535b3c1a3be8a7",
+      "patched": "32b78caa623d1e63cb52015adee0cb3c0c519a5e1bf8265524dd6b804235f93e"
+    }
+  }
+}

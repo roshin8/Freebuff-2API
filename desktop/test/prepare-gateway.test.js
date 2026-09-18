@@ -7,7 +7,7 @@ const { createHash } = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const { gatewayBuildPlan, prepareGateway } = require('../../scripts/prepare-gateway');
 
-const pinnedCommit = '506240d7deef1272ed05313ed72f7d9f11785e89';
+const pinnedCommit = 'ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68';
 
 function createGatewayFixture(t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'freebuff-gateway-'));
@@ -29,7 +29,7 @@ function createGatewayFixture(t) {
   execFileSync('git', ['init', '--quiet', upstreamDir]);
   fs.writeFileSync(manifestPath, JSON.stringify({
     repository: 'https://github.com/lza6/Freebuff-2API',
-    tag: 'v0.7.3',
+    tag: 'v0.8.0',
     commit: pinnedCommit,
   }));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));

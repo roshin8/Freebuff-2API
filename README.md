@@ -4,15 +4,16 @@ Freebuff2API for macOS is an independent, unsigned Electron wrapper maintained
 by `roshin8`. It is not a GitHub fork and does not include the upstream Rust
 source. This wrapper builds the gateway from the audited upstream
 [Freebuff-2API](https://github.com/lza6/Freebuff-2API) release pinned to
-`v0.7.3` (`506240d7deef1272ed05313ed72f7d9f11785e89`). Wrapper releases use
-their own version numbers; the current wrapper version is `0.1.2`.
+`v0.8.0` (`ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68`). Wrapper releases use
+their own version numbers; the current wrapper version is `0.1.4`.
 
 The bundled dashboard is in English. Builds apply the audited
-[English UI patch](patches/upstream-v0.7.3/english-dashboard.patch) to the exact
+[English UI patch](patches/upstream-v0.8.0/english-dashboard.patch) to the exact
 upstream pin before compiling. It covers dashboard labels, client examples,
 generated views, diagnostics, and gateway UI messages. Account names, your
 skills and memories, and messages from external services retain their original
-content.
+content. The v0.8.0 patch also keeps the integration-test mock listener bound
+to avoid a startup race in upstream's bridge test.
 
 ## Download and install
 
@@ -67,6 +68,15 @@ The dashboard's **Client setup** tab includes a copy-ready OpenCode provider
 configuration generated from the running gateway's URL, current API-key state,
 and an available model ID. Merge its `provider` block into
 `~/.config/opencode/opencode.jsonc`, restart OpenCode, and run `/models`.
+
+For web-cookie accounts, the OpenAI-compatible `/v1/chat/completions` endpoint
+also accepts image parts as base64 `data:` URLs (PNG, JPEG, GIF, or WebP; up to
+four images of 8 MB each). The gateway uploads them to Freebuff and forwards
+the resulting image IDs with the chat request. A live probe with
+`google/gemini-3.8-flash` succeeded on September 16, 2026. Remote image URLs
+are rejected, and image support through Bearer-token accounts is not verified.
+Clients such as OpenChamber may also need image input enabled in their own
+model metadata before their attachment control appears.
 
 The application keeps its configuration, gateway data, credentials, logs, and
 login-related local state under:

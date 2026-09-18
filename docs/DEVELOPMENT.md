@@ -11,7 +11,7 @@ directory, check out the audited commit, and export its absolute path:
 
 ```bash
 git clone https://github.com/lza6/Freebuff-2API.git ../Freebuff-2API-upstream
-git -C ../Freebuff-2API-upstream checkout 506240d7deef1272ed05313ed72f7d9f11785e89
+git -C ../Freebuff-2API-upstream checkout ef15ebcf7db7e53c6f32ae56bd4a4357fb91db68
 export FREEBUFF_UPSTREAM_DIR="$PWD/../Freebuff-2API-upstream"
 ```
 
@@ -24,7 +24,7 @@ inspect the checkout's remote origin or verify that the manifest tag resolves
 to that commit; perform those checks when updating the pin.
 
 Preparation then verifies SHA-256 hashes of every patched source file against
-`patches/upstream-v0.7.3/manifest.json`. It accepts either the clean pinned files
+`patches/upstream-v0.8.0/manifest.json`. It accepts either the clean pinned files
 or the exact already-patched files, checks patch applicability in the appropriate
 direction, and rejects source drift or a partially applied patch. Only the files
 listed in the patch are modified. Keep unrelated upstream changes out of release
